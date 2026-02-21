@@ -1,0 +1,279 @@
+// Matchday — Prisma Schema
+// Run `npm run db:generate` after changes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// NextAuth models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts              Account[]
+  sessions              Session[]
+  predictions           Prediction[]
+  awayDayPicks          AwayDayPick[]
+  boostChips            BoostChip[]
+  leagueMemberships     LeagueMember[]
+  gameweekSummaries     UserGameweekSummary[]
+  fcmTokens             FcmToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// FCM device tokens — one user can have multiple devices.
+model FcmToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  device    String?  // "web" | "ios" | "android"
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Core domain models
+// ---------------------------------------------------------------------------
+
+enum GameweekStatus {
+  UPCOMING
+  ACTIVE
+  FINISHED
+}
+
+model Gameweek {
+  id        Int            @id
+  number    Int            @unique
+  status    GameweekStatus @default(UPCOMING)
+  startDate DateTime?
+  endDate   DateTime?
+
+  fixtures          Fixture[]
+  awayDayPicks      AwayDayPick[]
+  boostChips        BoostChip[]
+  userSummaries     UserGameweekSummary[]
+  recaps            GameweekRecap[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum FixtureStatus {
+  UPCOMING
+  LIVE
+  FINISHED
+  POSTPONED
+}
+
+model Fixture {
+  id         String        @id @default(cuid())
+  externalId String        @unique
+  gameweekId Int
+  homeTeam   String // stored as nickname via toNickname()
+  awayTeam   String // stored as nickname via toNickname()
+  kickoff    DateTime
+  status     FixtureStatus @default(UPCOMING)
+  homeScore  Int?
+  awayScore  Int?
+
+  // Underdog Boost — 'home' | 'away' | null; locked 12h before kickoff
+  underdogSide     String?
+  underdogLockedAt DateTime?
+
+  postponed Boolean @default(false)
+
+  gameweek     Gameweek      @relation(fields: [gameweekId], references: [id])
+  predictions  Prediction[]
+  awayDayPicks AwayDayPick[]
+  boostChips   BoostChip[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Prediction {
+  id        String @id @default(cuid())
+  userId    String
+  fixtureId String
+
+  homeScore Int
+  awayScore Int
+  points    Int? // null until scored
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fixture Fixture @relation(fields: [fixtureId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, fixtureId])
+}
+
+model AwayDayPick {
+  id         String  @id @default(cuid())
+  userId     String
+  gameweekId Int
+  fixtureId  String
+  team       String // away team nickname
+
+  lockedAt DateTime?
+  won      Boolean?
+  voided   Boolean   @default(false) // postponed fixture → voided + returned
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameweek Gameweek @relation(fields: [gameweekId], references: [id])
+  fixture  Fixture  @relation(fields: [fixtureId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, gameweekId])
+}
+
+enum BoostType {
+  DOUBLE_DOWN
+  OUT_ON_THE_TOWN
+  UNDERDOG_BOOST
+}
+
+model BoostChip {
+  id     String    @id @default(cuid())
+  userId String
+  type   BoostType
+  slot   Int // 1 = must use by GW19; 2 = GW20+
+
+  gameweekId Int? // set when activated
+  fixtureId  String? // set when activated (UNDERDOG_BOOST only)
+
+  activatedAt DateTime?
+  expired     Boolean   @default(false)
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameweek Gameweek? @relation(fields: [gameweekId], references: [id])
+  fixture  Fixture?  @relation(fields: [fixtureId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// League models
+// ---------------------------------------------------------------------------
+
+model League {
+  id      String @id @default(cuid())
+  name    String
+  code    String @unique // invite code
+  ownerId String
+
+  members LeagueMember[]
+  recaps  GameweekRecap[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeagueMember {
+  id       String @id @default(cuid())
+  leagueId String
+  userId   String
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([leagueId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Gameweek scoring summaries and recap
+// ---------------------------------------------------------------------------
+
+/// Pre-calculated per-user gameweek score, stored after all fixtures finish.
+/// rawPoints  = sum of per-fixture base scores (before Away Day Pick / DD)
+/// finalPoints = after Away Day Pick multiplier + Double Down
+model UserGameweekSummary {
+  id          String @id @default(cuid())
+  userId      String
+  gameweekId  Int
+  rawPoints   Int
+  finalPoints Int
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameweek Gameweek @relation(fields: [gameweekId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, gameweekId])
+}
+
+/// AI-generated gameweek recap per league.
+/// failed = true when all 3 retry attempts were exhausted.
+model GameweekRecap {
+  id         String  @id @default(cuid())
+  gameweekId Int
+  leagueId   String
+  content    String  @db.Text
+  failed     Boolean @default(false)
+
+  gameweek Gameweek @relation(fields: [gameweekId], references: [id])
+  league   League   @relation(fields: [leagueId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([gameweekId, leagueId])
+}

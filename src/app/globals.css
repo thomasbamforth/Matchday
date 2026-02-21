@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-aubergine:    #2D0A31;
+  --color-hot-pink:     #FF2D7A;
+  --color-electric-cyan:#00E5FF;
+  --color-neon-green:   #39FF14;
+  --color-white:        #FFFFFF;
+  --color-gold:         #FFD700;
+}
+
+body {
+  background-color: var(--color-aubergine);
+  color: var(--color-white);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+/* -------------------------------------------------------------------------
+   Gold shimmer — used by Double Down strip
+   The gradient is animated via the gold-shimmer keyframe in tailwind config.
+------------------------------------------------------------------------- */
+.gold-shimmer-bg {
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 215, 0, 0.6) 50%,
+    transparent 60%
+  );
+  background-size: 200% auto;
+}
+
+/* -------------------------------------------------------------------------
+   Confetti — CSS-only particle burst triggered on exact score in banter feed.
+   Each .confetti-piece is positioned and animated via inline styles set in
+   BanterFeed.tsx.
+------------------------------------------------------------------------- */
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translateY(180px) rotate(720deg) scale(0.4); opacity: 0; }
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  animation: confetti-fall 1.2s ease-out forwards;
+  border-radius: 2px;
+}
+
+/* -------------------------------------------------------------------------
+   Scroll-lock helper applied to <body> when a modal is open.
+------------------------------------------------------------------------- */
+.modal-open {
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------
+   Score input — number input without spin buttons.
+------------------------------------------------------------------------- */
+.score-input::-webkit-inner-spin-button,
+.score-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.score-input[type="number"] {
+  -moz-appearance: textfield;
+}
