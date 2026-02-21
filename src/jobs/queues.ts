@@ -7,12 +7,9 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 
-if (!process.env.REDIS_URL) {
-  throw new Error("REDIS_URL environment variable is not set");
-}
-
-// BullMQ requires its own Redis connection (not shared with pub/sub)
-const connection = new IORedis(process.env.REDIS_URL, {
+// BullMQ requires its own Redis connection (not shared with pub/sub).
+// URL is validated at connection time so importing this module is safe without REDIS_URL.
+const connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
   maxRetriesPerRequest: null, // required by BullMQ
 });
 

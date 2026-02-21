@@ -12,11 +12,13 @@
 
 import OpenAI from "openai";
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY environment variable is not set");
+// Client is lazily initialised so importing this module is safe without OPENAI_API_KEY set.
+function getOpenAI(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY environment variable is not set");
+  }
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ---------------------------------------------------------------------------
 // Input types (mirror CLAUDE.md §7 payload)
@@ -79,7 +81,7 @@ export const RECAP_FALLBACK =
  * Throws on failure — the caller (BullMQ worker) handles retries.
  */
 export async function generateRecap(payload: RecapPayload): Promise<string> {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: "gpt-4o",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
