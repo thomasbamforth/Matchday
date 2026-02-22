@@ -18,6 +18,7 @@ interface GameweekViewProps {
   fixtures: Fixture[];
   initialPredictions: Record<string, UserPrediction>;
   awayDayPickFixtureId: string | null;
+  underdogBoostFixtureId: string | null;
 }
 
 export default function GameweekView({
@@ -25,6 +26,7 @@ export default function GameweekView({
   fixtures,
   initialPredictions,
   awayDayPickFixtureId,
+  underdogBoostFixtureId,
 }: GameweekViewProps) {
   const [liveFixtures, setLiveFixtures] = useState<Fixture[]>(fixtures);
   const [predictions, setPredictions] = useState(initialPredictions);
@@ -121,6 +123,7 @@ export default function GameweekView({
                   fixture={fixture}
                   prediction={predictions[fixture.id]}
                   isAwayDayPickFixture={awayPickId === fixture.id}
+                  hasUnderdogBoost={underdogBoostFixtureId === fixture.id}
                   onTap={
                     fixture.status === "UPCOMING"
                       ? () => setSelectedFixture(fixture)
@@ -144,6 +147,7 @@ export default function GameweekView({
           isAwayDayPickActive={awayPickId === selectedFixture.id}
           onToggleAwayDayPick={toggleAwayDayPick}
           awayDayPickLocked={!!awayPickId && awayPickId !== selectedFixture.id}
+          hasUnderdogBoost={underdogBoostFixtureId === selectedFixture.id}
         />
       )}
     </>

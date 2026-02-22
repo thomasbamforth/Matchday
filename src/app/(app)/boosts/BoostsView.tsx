@@ -3,12 +3,14 @@
 import { useState } from "react";
 import BoostPanel from "@/components/boosts/BoostPanel";
 import type { BoostChipInfo, BoostType } from "@/types/matchday";
+import type { FixtureOption } from "./page";
 
 interface BoostsViewProps {
   chips: BoostChipInfo[];
   currentGameweek: number;
   gameweekId: number;
   isSecondHalf: boolean;
+  upcomingFixtures: FixtureOption[];
 }
 
 export default function BoostsView({
@@ -16,16 +18,17 @@ export default function BoostsView({
   currentGameweek,
   gameweekId,
   isSecondHalf,
+  upcomingFixtures,
 }: BoostsViewProps) {
   const [localChips, setLocalChips] = useState(chips);
   const [error, setError] = useState("");
 
-  async function handleActivate(slot: number, type: BoostType) {
+  async function handleActivate(slot: number, type: BoostType, fixtureId?: string) {
     setError("");
     const res = await fetch("/api/boosts/activate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slot, type, gameweekId }),
+      body: JSON.stringify({ slot, type, gameweekId, fixtureId }),
     });
     if (!res.ok) {
       const d = await res.json();
@@ -35,7 +38,7 @@ export default function BoostsView({
     setLocalChips((prev) =>
       prev.map((c) =>
         c.slot === slot
-          ? { ...c, type, activated: true, activatedGameweek: currentGameweek }
+          ? { ...c, type, activated: true, activatedGameweek: currentGameweek, activatedFixtureId: fixtureId }
           : c
       )
     );
@@ -52,6 +55,7 @@ export default function BoostsView({
         currentGameweek={currentGameweek}
         onActivate={handleActivate}
         isSecondHalf={isSecondHalf}
+        upcomingFixtures={upcomingFixtures}
       />
 
       {/* Rules reminder */}

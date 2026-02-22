@@ -63,25 +63,26 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const chip = await prisma.boostChip.upsert({
-    where: existing
-      ? { id: existing.id }
-      : { id: "new" }, // force create path
-    create: {
-      userId: session.user.id,
-      slot,
-      type: type as BoostType,
-      gameweekId,
-      fixtureId: fixtureId ?? null,
-      activatedAt: new Date(),
-    },
-    update: {
-      type: type as BoostType,
-      gameweekId,
-      fixtureId: fixtureId ?? null,
-      activatedAt: new Date(),
-    },
-  });
+  const chip = existing
+    ? await prisma.boostChip.update({
+        where: { id: existing.id },
+        data: {
+          type: type as BoostType,
+          gameweekId,
+          fixtureId: fixtureId ?? null,
+          activatedAt: new Date(),
+        },
+      })
+    : await prisma.boostChip.create({
+        data: {
+          userId: session.user.id,
+          slot,
+          type: type as BoostType,
+          gameweekId,
+          fixtureId: fixtureId ?? null,
+          activatedAt: new Date(),
+        },
+      });
 
   return NextResponse.json(chip);
 }

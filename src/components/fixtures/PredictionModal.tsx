@@ -16,6 +16,8 @@ interface PredictionModalProps {
   onToggleAwayDayPick?: () => void;
   /** True when Away Day Pick is locked (another pick already active) */
   awayDayPickLocked?: boolean;
+  /** True when the user has an active Underdog Boost on this fixture */
+  hasUnderdogBoost?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export default function PredictionModal({
   isAwayDayPickActive = false,
   onToggleAwayDayPick,
   awayDayPickLocked = false,
+  hasUnderdogBoost = false,
 }: PredictionModalProps) {
   const [home, setHome] = useState(currentPrediction?.homeScore ?? 0);
   const [away, setAway] = useState(currentPrediction?.awayScore ?? 0);
@@ -160,7 +163,7 @@ export default function PredictionModal({
                   <p className="text-xs text-white/50">
                     {isAwayDayPickActive
                       ? "Active — doubles points if away wins"
-                      : "Pick {fixture.awayTeam} to win for a 2× bonus"}
+                      : `Pick ${fixture.awayTeam} to win for a 2× bonus`}
                   </p>
                 </div>
                 <button
@@ -190,6 +193,35 @@ export default function PredictionModal({
                   Away Day Pick already used on another fixture this gameweek.
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Underdog Boost info */}
+          {fixture.underdogSide && (
+            <div className={[
+              "rounded-xl border px-4 py-3",
+              hasUnderdogBoost
+                ? "border-neon-green/30 bg-neon-green/5"
+                : "border-white/10 bg-white/5",
+            ].join(" ")}>
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 text-sm">⭐</span>
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {fixture.underdogSide === "home" ? fixture.homeTeam : fixture.awayTeam}{" "}
+                    <span className="font-normal text-white/60">is the underdog</span>
+                  </p>
+                  {hasUnderdogBoost ? (
+                    <p className="mt-0.5 text-xs text-neon-green">
+                      Your Underdog Boost is active — 5 pts (exact) / 3 pts (result) if they win
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-xs text-white/40">
+                      Activate your Underdog Boost on this fixture from the Boosts page
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

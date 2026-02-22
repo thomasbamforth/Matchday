@@ -4,6 +4,14 @@ import { prisma } from "@/lib/prisma";
 import BoostsView from "./BoostsView";
 import type { BoostChipInfo } from "@/types/matchday";
 
+export interface FixtureOption {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  underdogSide: "home" | "away" | null;
+  kickoff: string; // ISO string — safe to pass from server to client component
+}
+
 async function getData(userId: string) {
   const [chips, activeGw] = await Promise.all([
     prisma.boostChip.findMany({
@@ -15,12 +23,29 @@ async function getData(userId: string) {
       orderBy: { number: "asc" },
     }),
   ]);
-  return { chips, activeGw };
+
+  const upcomingFixtures: FixtureOption[] = activeGw
+    ? (
+        await prisma.fixture.findMany({
+          where: { gameweekId: activeGw.id, status: "UPCOMING" },
+          select: { id: true, homeTeam: true, awayTeam: true, underdogSide: true, kickoff: true },
+          orderBy: { kickoff: "asc" },
+        })
+      ).map((f) => ({
+        id: f.id,
+        homeTeam: f.homeTeam,
+        awayTeam: f.awayTeam,
+        underdogSide: f.underdogSide as "home" | "away" | null,
+        kickoff: f.kickoff.toISOString(),
+      }))
+    : [];
+
+  return { chips, activeGw, upcomingFixtures };
 }
 
 export default async function BoostsPage() {
   const session = await getServerSession(authOptions);
-  const { chips, activeGw } = await getData(session!.user.id);
+  const { chips, activeGw, upcomingFixtures } = await getData(session!.user.id);
 
   // Build two chip slots — one per season half
   const slot1 = chips.find((c) => c.slot === 1);
@@ -59,6 +84,7 @@ export default async function BoostsPage() {
         currentGameweek={activeGw?.number ?? 1}
         gameweekId={activeGw?.id ?? 0}
         isSecondHalf={(activeGw?.number ?? 0) > 19}
+        upcomingFixtures={upcomingFixtures}
       />
     </div>
   );

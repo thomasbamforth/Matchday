@@ -6,7 +6,7 @@ import GameweekView from "./GameweekView";
 import type { Fixture, UserPrediction } from "@/types/matchday";
 
 async function getData(gameweekId: number, userId: string) {
-  const [gameweek, predictions, awayDayPick] = await Promise.all([
+  const [gameweek, predictions, awayDayPick, underdogBoost] = await Promise.all([
     prisma.gameweek.findUnique({
       where: { id: gameweekId },
       include: { fixtures: { orderBy: { kickoff: "asc" } } },
@@ -18,9 +18,13 @@ async function getData(gameweekId: number, userId: string) {
     prisma.awayDayPick.findUnique({
       where: { userId_gameweekId: { userId, gameweekId } },
     }),
+    prisma.boostChip.findFirst({
+      where: { userId, type: "UNDERDOG_BOOST", gameweekId, activatedAt: { not: null } },
+      select: { fixtureId: true },
+    }),
   ]);
 
-  return { gameweek, predictions, awayDayPick };
+  return { gameweek, predictions, awayDayPick, underdogBoost };
 }
 
 export default async function GameweekPage({ params }: { params: { id: string } }) {
@@ -28,7 +32,7 @@ export default async function GameweekPage({ params }: { params: { id: string } 
   const gameweekId = Number(params.id);
   if (isNaN(gameweekId)) notFound();
 
-  const { gameweek, predictions, awayDayPick } = await getData(gameweekId, session!.user.id);
+  const { gameweek, predictions, awayDayPick, underdogBoost } = await getData(gameweekId, session!.user.id);
   if (!gameweek) notFound();
 
   const fixtures: Fixture[] = gameweek.fixtures.map((f) => ({
@@ -63,6 +67,7 @@ export default async function GameweekPage({ params }: { params: { id: string } 
         fixtures={fixtures}
         initialPredictions={predMap}
         awayDayPickFixtureId={awayDayPick?.fixtureId ?? null}
+        underdogBoostFixtureId={underdogBoost?.fixtureId ?? null}
       />
     </div>
   );

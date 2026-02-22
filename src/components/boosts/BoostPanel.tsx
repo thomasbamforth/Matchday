@@ -3,14 +3,17 @@
 import { useState } from "react";
 import ConfirmBanner from "@/components/ui/ConfirmBanner";
 import type { BoostChipInfo, BoostType } from "@/types/matchday";
+import type { FixtureOption } from "@/app/(app)/boosts/page";
 
 interface BoostPanelProps {
   chips: BoostChipInfo[];
   currentGameweek: number;
   /** Called when the user confirms activation */
-  onActivate: (slot: number, type: BoostType) => Promise<void>;
+  onActivate: (slot: number, type: BoostType, fixtureId?: string) => Promise<void>;
   /** True during GW20+ — slot-1 chip is expired if unused */
   isSecondHalf: boolean;
+  /** Upcoming fixtures for Underdog Boost fixture selection */
+  upcomingFixtures?: FixtureOption[];
 }
 
 const BOOST_INFO: Record<BoostType, { name: string; icon: string; description: string }> = {
@@ -34,6 +37,7 @@ const BOOST_INFO: Record<BoostType, { name: string; icon: string; description: s
 interface PendingActivation {
   slot: number;
   type: BoostType;
+  fixtureId?: string; // set after fixture selection for UNDERDOG_BOOST
 }
 
 /**
@@ -43,22 +47,37 @@ interface PendingActivation {
  *  - "Double Down activation: gold shimmer sweeps across entire gameweek strip"
  *  - "Boost activation always shows a hot pink confirmation warning banner. Cannot be undone."
  *  - Expired chip slot renders greyed-out (§9.3)
+ *
+ * Underdog Boost flow (two steps):
+ *  1. User selects UNDERDOG_BOOST → fixture picker is shown
+ *  2. User selects a fixture → ConfirmBanner shown
+ *  3. User confirms → onActivate called with fixtureId
  */
 export default function BoostPanel({
   chips,
   currentGameweek,
   onActivate,
   isSecondHalf,
+  upcomingFixtures = [],
 }: BoostPanelProps) {
   const [pending, setPending] = useState<PendingActivation | null>(null);
   const [activating, setActivating] = useState(false);
   const [shimmer, setShimmer] = useState(false);
 
+  // True when UNDERDOG_BOOST is selected but fixture not yet chosen
+  const needsFixtureSelection =
+    pending?.type === "UNDERDOG_BOOST" && !pending.fixtureId;
+
+  // True when ready to show the ConfirmBanner
+  const readyToConfirm =
+    pending !== null &&
+    (pending.type !== "UNDERDOG_BOOST" || !!pending.fixtureId);
+
   async function confirmActivation() {
     if (!pending) return;
     setActivating(true);
     try {
-      await onActivate(pending.slot, pending.type);
+      await onActivate(pending.slot, pending.type, pending.fixtureId);
       if (pending.type === "DOUBLE_DOWN") {
         setShimmer(true);
         setTimeout(() => setShimmer(false), 1500);
@@ -68,6 +87,14 @@ export default function BoostPanel({
       setPending(null);
     }
   }
+
+  function cancelPending() {
+    setPending(null);
+  }
+
+  const pendingFixture = pending?.fixtureId
+    ? upcomingFixtures.find((f) => f.id === pending.fixtureId)
+    : null;
 
   return (
     <div className={["relative rounded-xl border border-white/10 p-4", shimmer ? "animate-gold-shimmer gold-shimmer-bg" : ""].join(" ")}>
@@ -160,13 +187,76 @@ export default function BoostPanel({
         })}
       </div>
 
-      {/* Confirmation banner */}
-      {pending && (
+      {/* Step 2 — Underdog Boost fixture picker */}
+      {needsFixtureSelection && (
+        <div className="mt-4 rounded-xl border border-neon-green/20 bg-neon-green/5 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold text-white">
+              ⭐ Pick a fixture for your Underdog Boost
+            </p>
+            <button
+              onClick={cancelPending}
+              className="text-xs text-white/40 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {upcomingFixtures.length === 0 ? (
+            <p className="text-xs text-white/50">
+              No upcoming fixtures available yet. Check back closer to the gameweek.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingFixtures.map((f) => {
+                const underdogTeam =
+                  f.underdogSide === "home"
+                    ? f.homeTeam
+                    : f.underdogSide === "away"
+                    ? f.awayTeam
+                    : null;
+
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() =>
+                      setPending((prev) => prev ? { ...prev, fixtureId: f.id } : prev)
+                    }
+                    className="w-full rounded-lg border border-white/10 px-3 py-2.5 text-left hover:border-neon-green/40 hover:bg-neon-green/5 transition-colors"
+                  >
+                    <p className="text-sm text-white">
+                      {f.homeTeam}{" "}
+                      <span className="text-white/40">vs</span>{" "}
+                      {f.awayTeam}
+                    </p>
+                    {underdogTeam ? (
+                      <p className="mt-0.5 text-xs text-neon-green">
+                        ⭐ {underdogTeam} is the underdog
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-white/30">
+                        Underdog not yet designated
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Step 3 — Confirmation banner */}
+      {readyToConfirm && pending && (
         <div className="mt-4">
           <ConfirmBanner
-            message={`Activate ${BOOST_INFO[pending.type].name} for GW${currentGameweek}?`}
+            message={
+              pending.type === "UNDERDOG_BOOST" && pendingFixture
+                ? `Activate Underdog Boost on ${pendingFixture.homeTeam} vs ${pendingFixture.awayTeam} for GW${currentGameweek}? Cannot be undone.`
+                : `Activate ${BOOST_INFO[pending.type].name} for GW${currentGameweek}? Cannot be undone.`
+            }
             onConfirm={confirmActivation}
-            onCancel={() => setPending(null)}
+            onCancel={cancelPending}
             loading={activating}
           />
         </div>
