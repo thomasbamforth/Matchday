@@ -10,6 +10,10 @@
  *      scores (Away Day Pick multiplier + Double Down) and store UserGameweekSummary
  *   3. If that was the last fixture in the gameweek, enqueue ai-recap jobs for
  *      every league the affected users belong to
+ *
+ * Notifications fired here (per CLAUDE.md §9):
+ *   - Away Day Pick win: when the away team wins a fixture with active picks
+ *   - Rival overtake: when a user's league rank worsens after summary recalculation
  */
 
 import { Worker, type Job } from "bullmq";
@@ -20,14 +24,13 @@ import {
   scoreGameweek,
   type FixtureInput,
 } from "@/lib/scoring";
+import { sendAwayDayPickWin, sendRivalOvertake } from "@/lib/notifications";
 
 // ---------------------------------------------------------------------------
 // Per-fixture base score (Underdog Boost only — no gameweek-level boosts)
 // ---------------------------------------------------------------------------
 
-async function updatePredictionPoints(
-  fixtureId: string
-): Promise<void> {
+async function updatePredictionPoints(fixtureId: string): Promise<void> {
   const fixture = await prisma.fixture.findUniqueOrThrow({
     where: { id: fixtureId },
     include: {
@@ -67,13 +70,46 @@ async function updatePredictionPoints(
 }
 
 // ---------------------------------------------------------------------------
+// Away Day Pick win notification
+// ---------------------------------------------------------------------------
+
+async function notifyAwayDayPickWins(fixtureId: string): Promise<void> {
+  const fixture = await prisma.fixture.findUnique({
+    where: { id: fixtureId },
+    select: { homeScore: true, awayScore: true, awayTeam: true },
+  });
+  if (!fixture || fixture.homeScore === null || fixture.awayScore === null) return;
+
+  const awayWon = fixture.awayScore > fixture.homeScore;
+  if (!awayWon) return;
+
+  const picks = await prisma.awayDayPick.findMany({
+    where: { fixtureId, voided: false },
+    select: { userId: true },
+  });
+  if (picks.length === 0) return;
+
+  await Promise.all(
+    picks.map(async ({ userId }) => {
+      // Use the first league as the deep-link destination
+      const membership = await prisma.leagueMember.findFirst({
+        where: { userId },
+        select: { leagueId: true },
+        orderBy: { joinedAt: "asc" },
+      });
+      if (!membership) return;
+      return sendAwayDayPickWin(userId, fixture.awayTeam, membership.leagueId).catch((err) =>
+        console.warn("[score-update] Away Day Pick win notification failed:", err)
+      );
+    })
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Full gameweek score per user (all boosts)
 // ---------------------------------------------------------------------------
 
-async function calculateGameweekSummary(
-  userId: string,
-  gameweekId: number
-): Promise<void> {
+async function calculateGameweekSummary(userId: string, gameweekId: number): Promise<void> {
   const [predictions, awayDayPick, boostChips] = await Promise.all([
     prisma.prediction.findMany({
       where: { userId, fixture: { gameweekId } },
@@ -87,14 +123,12 @@ async function calculateGameweekSummary(
     }),
   ]);
 
-  const hasDoubleDown = boostChips.some((b) => b.type === "DOUBLE_DOWN");
-  const hasOutOnTheTown = boostChips.some((b) => b.type === "OUT_ON_THE_TOWN");
-  const underdogChip = boostChips.find((b) => b.type === "UNDERDOG_BOOST");
+  const hasDoubleDown    = boostChips.some((b) => b.type === "DOUBLE_DOWN");
+  const hasOutOnTheTown  = boostChips.some((b) => b.type === "OUT_ON_THE_TOWN");
+  const underdogChip     = boostChips.find((b) => b.type === "UNDERDOG_BOOST");
 
   const fixtureInputs: FixtureInput[] = predictions
-    .filter(
-      (p) => p.fixture.homeScore !== null && p.fixture.awayScore !== null
-    )
+    .filter((p) => p.fixture.homeScore !== null && p.fixture.awayScore !== null)
     .map((p) => ({
       prediction: { home: p.homeScore, away: p.awayScore },
       result: { home: p.fixture.homeScore!, away: p.fixture.awayScore! },
@@ -108,7 +142,6 @@ async function calculateGameweekSummary(
     outOnTheTown: hasOutOnTheTown,
   });
 
-  // rawPoints = sum without gameweek-level multipliers
   const rawPoints = fixtureInputs.reduce(
     (sum, f) => sum + scoreFixture(f, { outOnTheTown: false }),
     0
@@ -122,6 +155,86 @@ async function calculateGameweekSummary(
 }
 
 // ---------------------------------------------------------------------------
+// Rival overtake detection
+// ---------------------------------------------------------------------------
+
+type LeagueMemberRow = { leagueId: string; userId: string; user: { name: string | null } };
+
+function computeRanksPerLeague(
+  members: LeagueMemberRow[],
+  pointsMap: Record<string, number>
+): Record<string, Record<string, number>> {
+  // Group member IDs by league
+  const byLeague: Record<string, string[]> = {};
+  for (const m of members) {
+    (byLeague[m.leagueId] ??= []).push(m.userId);
+  }
+
+  const ranks: Record<string, Record<string, number>> = {};
+  for (const [leagueId, memberIds] of Object.entries(byLeague)) {
+    const sorted = [...memberIds].sort(
+      (a, b) => (pointsMap[b] ?? 0) - (pointsMap[a] ?? 0)
+    );
+    ranks[leagueId] = Object.fromEntries(sorted.map((uid, i) => [uid, i + 1]));
+  }
+  return ranks;
+}
+
+async function detectAndSendRivalOvertakes(
+  affectedUserIds: string[],
+  gameweekId: number,
+  preRanks: Record<string, Record<string, number>>,
+  allMembers: LeagueMemberRow[]
+): Promise<void> {
+  const allMemberIds = [...new Set(allMembers.map((m) => m.userId))];
+
+  const postSummaries = await prisma.userGameweekSummary.findMany({
+    where: { gameweekId, userId: { in: allMemberIds } },
+    select: { userId: true, finalPoints: true },
+  });
+  const postPointsMap: Record<string, number> = {};
+  for (const s of postSummaries) postPointsMap[s.userId] = s.finalPoints;
+
+  const postRanks = computeRanksPerLeague(allMembers, postPointsMap);
+
+  const nameMap: Record<string, string> = {};
+  for (const m of allMembers) nameMap[m.userId] = m.user.name ?? "Someone";
+
+  const byLeague: Record<string, string[]> = {};
+  for (const m of allMembers) (byLeague[m.leagueId] ??= []).push(m.userId);
+
+  const notifications: Promise<void>[] = [];
+
+  for (const userId of affectedUserIds) {
+    for (const [leagueId, memberIds] of Object.entries(byLeague)) {
+      if (!memberIds.includes(userId)) continue;
+
+      const preRank  = preRanks[leagueId]?.[userId];
+      const postRank = postRanks[leagueId]?.[userId];
+      if (!preRank || !postRank || postRank <= preRank) continue; // rank same or improved
+
+      // Overtaker: was ranked below this user before, now ranked above
+      const overtakers = memberIds.filter((uid) => {
+        if (uid === userId) return false;
+        const pre  = preRanks[leagueId]?.[uid]  ?? 999;
+        const post = postRanks[leagueId]?.[uid] ?? 999;
+        return pre > preRank && post < postRank;
+      });
+
+      for (const overtakerId of overtakers) {
+        notifications.push(
+          sendRivalOvertake(userId, nameMap[overtakerId], leagueId).catch((err) =>
+            console.warn("[score-update] Rival overtake notification failed:", err)
+          )
+        );
+      }
+    }
+  }
+
+  await Promise.all(notifications);
+}
+
+// ---------------------------------------------------------------------------
 // Worker processor
 // ---------------------------------------------------------------------------
 
@@ -131,7 +244,12 @@ async function process(job: Job<ScoreUpdateJobData>): Promise<void> {
   // Step 1: base prediction points for this fixture
   await updatePredictionPoints(fixtureId);
 
-  // Step 2: find all users who predicted in this gameweek and update their summary
+  // Step 2: Away Day Pick win notifications (fire-and-forget; must not block scoring)
+  notifyAwayDayPickWins(fixtureId).catch((err) =>
+    console.warn("[score-update] notifyAwayDayPickWins error:", err)
+  );
+
+  // Step 3: find all users who predicted in this gameweek
   const userIds = await prisma.prediction
     .findMany({
       where: { fixture: { gameweekId } },
@@ -140,11 +258,29 @@ async function process(job: Job<ScoreUpdateJobData>): Promise<void> {
     })
     .then((rows) => rows.map((r) => r.userId));
 
-  await Promise.all(
-    userIds.map((uid) => calculateGameweekSummary(uid, gameweekId))
-  );
+  // Step 4: gather all league members for affected users (needed for rank tracking)
+  const allMembers = await prisma.leagueMember.findMany({
+    where: { userId: { in: userIds } },
+    select: { leagueId: true, userId: true, user: { select: { name: true } } },
+  });
+  const allMemberIds = [...new Set(allMembers.map((m) => m.userId))];
 
-  // Step 3: check if all non-postponed fixtures in the gameweek are FINISHED
+  // Step 5: capture pre-update league ranks
+  const preSummaries = await prisma.userGameweekSummary.findMany({
+    where: { gameweekId, userId: { in: allMemberIds } },
+    select: { userId: true, finalPoints: true },
+  });
+  const prePointsMap: Record<string, number> = {};
+  for (const s of preSummaries) prePointsMap[s.userId] = s.finalPoints;
+  const preRanks = computeRanksPerLeague(allMembers, prePointsMap);
+
+  // Step 6: recalculate GW summaries for all users
+  await Promise.all(userIds.map((uid) => calculateGameweekSummary(uid, gameweekId)));
+
+  // Step 7: detect and send rival overtake notifications
+  await detectAndSendRivalOvertakes(userIds, gameweekId, preRanks, allMembers);
+
+  // Step 8: check if all non-postponed fixtures in the gameweek are FINISHED
   const unfinished = await prisma.fixture.count({
     where: {
       gameweekId,
@@ -155,13 +291,13 @@ async function process(job: Job<ScoreUpdateJobData>): Promise<void> {
 
   if (unfinished > 0) return; // more fixtures still running
 
-  // Step 4: mark gameweek FINISHED
+  // Step 9: mark gameweek FINISHED
   await prisma.gameweek.update({
     where: { id: gameweekId },
     data: { status: "FINISHED" },
   });
 
-  // Step 5: enqueue ai-recap for every league that has at least one member in this GW
+  // Step 10: enqueue ai-recap for every league with at least one predictor this GW
   const leagues = await prisma.league.findMany({
     where: {
       members: {

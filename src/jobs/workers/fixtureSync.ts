@@ -19,6 +19,7 @@ import { getFixturesByGameweek } from "@/lib/clients/apiFootball";
 import { redis, createPublisher } from "@/lib/redis";
 import { LAST_DAILY_SYNC_KEY, SCORE_UPDATE_CHANNEL } from "@/lib/redisKeys";
 import { prisma } from "@/lib/prisma";
+import { sendGoalAlerts } from "@/lib/notifications";
 import type { ScoreUpdateMessage } from "@/server/pubsubListener";
 
 const DAILY_SYNC_INTERVAL_MS = 23 * 60 * 60 * 1000; // 23h (slight buffer)
@@ -111,6 +112,27 @@ async function process(job: Job<FixtureSyncJobData>): Promise<void> {
         status: updated.status as ScoreUpdateMessage["status"],
       };
       await publisher.publish(SCORE_UPDATE_CHANNEL, JSON.stringify(msg));
+    }
+
+    // Send goal alert push notifications when the actual score changes
+    // (not just a status transition like UPCOMING→LIVE or LIVE→FINISHED)
+    const goalScored =
+      existing?.homeScore !== apiFixture.homeScore ||
+      existing?.awayScore !== apiFixture.awayScore;
+
+    if (goalScored && apiFixture.homeScore !== null && apiFixture.awayScore !== null) {
+      const predictorIds = await prisma.prediction
+        .findMany({ where: { fixtureId: updated.id }, select: { userId: true } })
+        .then((rows) => rows.map((r) => r.userId));
+
+      sendGoalAlerts(
+        predictorIds,
+        updated.homeTeam,
+        updated.awayTeam,
+        apiFixture.homeScore,
+        apiFixture.awayScore,
+        updated.id,
+      ).catch((err) => console.warn("[fixture-sync] Goal alert failed:", err));
     }
 
     // Enqueue score-update job when a fixture transitions to FINISHED

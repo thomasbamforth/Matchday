@@ -18,6 +18,7 @@ import {
   type RecapPayload,
   type RecapMember,
 } from "@/lib/clients/openaiClient";
+import { sendRecapReady } from "@/lib/notifications";
 
 // ---------------------------------------------------------------------------
 // Build the recap payload from the DB
@@ -127,6 +128,26 @@ async function process(job: Job<AiRecapJobData>): Promise<void> {
     create: { gameweekId, leagueId, content, failed: false },
     update: { content, failed: false },
   });
+
+  // Notify all league members that the recap is ready
+  const [members, gameweek] = await Promise.all([
+    prisma.leagueMember.findMany({
+      where: { leagueId },
+      select: { userId: true },
+    }),
+    prisma.gameweek.findUnique({
+      where: { id: gameweekId },
+      select: { number: true },
+    }),
+  ]);
+
+  if (gameweek) {
+    sendRecapReady(
+      members.map((m) => m.userId),
+      gameweek.number,
+      leagueId
+    ).catch((err) => console.warn("[ai-recap] sendRecapReady failed:", err));
+  }
 }
 
 // ---------------------------------------------------------------------------
