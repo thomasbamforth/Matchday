@@ -15,7 +15,7 @@ export default function NotificationSettings() {
             <>
               <p className="text-sm font-semibold text-neon-green">Enabled</p>
               <p className="mt-0.5 text-xs text-white/40">
-                You'll receive goals, rival overtakes, and recap alerts.
+                You&apos;ll receive goals, rival overtakes, and recap alerts.
               </p>
             </>
           )}
@@ -39,7 +39,7 @@ export default function NotificationSettings() {
             <>
               <p className="text-sm font-semibold text-white/40">Not supported</p>
               <p className="mt-0.5 text-xs text-white/40">
-                Your browser doesn't support push notifications.
+                Your browser doesn&apos;t support push notifications.
               </p>
             </>
           )}

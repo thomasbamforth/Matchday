@@ -38,6 +38,7 @@
     "@types/react-dom": "^18",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.18",
+    "autoprefixer": "^10.4.24",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "postcss": "^8",

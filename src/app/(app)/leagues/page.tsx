@@ -143,7 +143,7 @@ export default function LeaguesPage() {
         {/* Empty state */}
         {!isLoading && leagues?.length === 0 && (
           <div className="rounded-xl border border-dashed border-white/20 px-4 py-8 text-center">
-            <p className="text-sm text-white/50">You're not in any leagues yet.</p>
+            <p className="text-sm text-white/50">You&apos;re not in any leagues yet.</p>
             <p className="mt-1 text-xs text-white/30">
               Create one below or ask a mate for their invite code.
             </p>
@@ -185,7 +185,7 @@ export default function LeaguesPage() {
       <section className="rounded-xl border border-white/10 p-4">
         <h2 className="mb-1 text-sm font-bold text-white">Create a league</h2>
         <p className="mb-3 text-xs text-white/40">
-          You'll get a shareable invite code to send to your mates.
+          You&apos;ll get a shareable invite code to send to your mates.
         </p>
 
         {createError && (
