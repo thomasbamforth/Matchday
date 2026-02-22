@@ -7,10 +7,10 @@ interface BoostChipBadgeProps {
   size?: "sm" | "md";
 }
 
-const BOOST_META: Record<BoostType, { label: string; icon: string; title: string }> = {
-  DOUBLE_DOWN:     { label: "DD",  icon: "⚡", title: "Double Down"     },
-  OUT_ON_THE_TOWN: { label: "OT",  icon: "🔥", title: "Out on the Town" },
-  UNDERDOG_BOOST:  { label: "UB",  icon: "⭐", title: "Underdog Boost"  },
+const BOOST_META: Record<BoostType, { label: string; title: string }> = {
+  DOUBLE_DOWN:     { label: "DD", title: "Double Down"     },
+  OUT_ON_THE_TOWN: { label: "OT", title: "Out on the Town" },
+  UNDERDOG_BOOST:  { label: "UB", title: "Underdog Boost"  },
 };
 
 /**
@@ -37,7 +37,6 @@ export default function BoostChipBadge({
         .filter(Boolean)
         .join(" ")}
     >
-      <span aria-hidden="true">{meta.icon}</span>
       {meta.label}
     </span>
   );

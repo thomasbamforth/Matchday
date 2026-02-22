@@ -11,6 +11,7 @@ interface BoostsViewProps {
   gameweekId: number;
   isSecondHalf: boolean;
   upcomingFixtures: FixtureOption[];
+  hasAwayDayPick: boolean;
 }
 
 export default function BoostsView({
@@ -19,6 +20,7 @@ export default function BoostsView({
   gameweekId,
   isSecondHalf,
   upcomingFixtures,
+  hasAwayDayPick,
 }: BoostsViewProps) {
   const [localChips, setLocalChips] = useState(chips);
   const [error, setError] = useState("");
@@ -56,14 +58,28 @@ export default function BoostsView({
         onActivate={handleActivate}
         isSecondHalf={isSecondHalf}
         upcomingFixtures={upcomingFixtures}
+        hasAwayDayPick={hasAwayDayPick}
       />
 
       {/* Rules reminder */}
-      <div className="rounded-xl border border-white/10 px-4 py-4 space-y-2 text-xs text-white/40">
-        <p>⚡ <strong className="text-white/60">Double Down</strong> — doubles your entire gameweek total. Applied last.</p>
-        <p>🔥 <strong className="text-white/60">Out on the Town</strong> — upgrades your Away Day Pick from 2× to 3×. No effect without an Away Day Pick.</p>
-        <p>⭐ <strong className="text-white/60">Underdog Boost</strong> — pick one fixture. If the underdog wins and your prediction is correct: 5 pts (exact) or 3 pts (result).</p>
-        <p className="pt-1 text-hot-pink/70">Boost #1 must be used by GW19 or it expires. Boost #2 is available from GW20 onwards.</p>
+      <div className="space-y-2 rounded-xl border border-white/10 px-4 py-4 text-xs text-white/40">
+        <p>
+          <strong className="text-white/60">Double Down</strong> — doubles your entire gameweek
+          points total. Applied after all other multipliers.
+        </p>
+        <p>
+          <strong className="text-white/60">Out on the Town</strong> — upgrades your Away Day Pick
+          multiplier from 2× to 3×. Has no effect without an Away Day Pick that gameweek.
+        </p>
+        <p>
+          <strong className="text-white/60">Underdog Boost</strong> — activate on one fixture
+          before kickoff. If the underdog wins and your prediction is correct: 5 pts (exact) or
+          3 pts (result).
+        </p>
+        <p className="pt-1 text-hot-pink/70">
+          Boost #1 must be used by GW19 or it expires permanently. Boost #2 is available from
+          GW20 onwards.
+        </p>
       </div>
     </div>
   );

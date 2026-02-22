@@ -24,6 +24,12 @@ async function getData(userId: string) {
     }),
   ]);
 
+  const hasAwayDayPick = activeGw
+    ? !!(await prisma.awayDayPick.findFirst({
+        where: { userId, gameweekId: activeGw.id, voided: false },
+      }))
+    : false;
+
   const upcomingFixtures: FixtureOption[] = activeGw
     ? (
         await prisma.fixture.findMany({
@@ -40,12 +46,12 @@ async function getData(userId: string) {
       }))
     : [];
 
-  return { chips, activeGw, upcomingFixtures };
+  return { chips, activeGw, upcomingFixtures, hasAwayDayPick };
 }
 
 export default async function BoostsPage() {
   const session = await getServerSession(authOptions);
-  const { chips, activeGw, upcomingFixtures } = await getData(session!.user.id);
+  const { chips, activeGw, upcomingFixtures, hasAwayDayPick } = await getData(session!.user.id);
 
   // Build two chip slots — one per season half
   const slot1 = chips.find((c) => c.slot === 1);
@@ -85,6 +91,7 @@ export default async function BoostsPage() {
         gameweekId={activeGw?.id ?? 0}
         isSecondHalf={(activeGw?.number ?? 0) > 19}
         upcomingFixtures={upcomingFixtures}
+        hasAwayDayPick={hasAwayDayPick}
       />
     </div>
   );
