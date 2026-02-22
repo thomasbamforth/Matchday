@@ -8,6 +8,8 @@ interface RecapCardProps {
 }
 
 const TYPEWRITER_SPEED_MS = 18;
+const FALLBACK_TEXT =
+  "The oracle is silent this week. Results were recorded, points distributed, dignity lost in the usual places.";
 
 /**
  * AI recap card with newspaper-unfold then typewriter reveal.
@@ -16,6 +18,9 @@ const TYPEWRITER_SPEED_MS = 18;
  *  "AI recap delivery: crumpled newspaper unfolding → typewriter effect on aubergine background"
  */
 export default function RecapCard({ recap }: RecapCardProps) {
+  // Lift text computation to component scope so the cursor condition can use text.length
+  const text = recap.failed ? FALLBACK_TEXT : recap.content;
+
   const [unfolded, setUnfolded] = useState(false);
   const [displayed, setDisplayed] = useState("");
   const indexRef = useRef(0);
@@ -23,19 +28,12 @@ export default function RecapCard({ recap }: RecapCardProps) {
 
   // Unfold first, then start typewriter
   useEffect(() => {
-    const unfoldTimer = setTimeout(() => {
-      setUnfolded(true);
-    }, 200);
-
+    const unfoldTimer = setTimeout(() => setUnfolded(true), 200);
     return () => clearTimeout(unfoldTimer);
   }, []);
 
   useEffect(() => {
     if (!unfolded) return;
-
-    const text = recap.failed
-      ? "The oracle is silent this week. Results were recorded, points distributed, dignity lost in the usual places."
-      : recap.content;
 
     indexRef.current = 0;
     setDisplayed("");
@@ -56,7 +54,7 @@ export default function RecapCard({ recap }: RecapCardProps) {
       clearTimeout(startTimer);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [unfolded, recap.content, recap.failed]);
+  }, [unfolded, text]);
 
   return (
     <div
@@ -81,11 +79,11 @@ export default function RecapCard({ recap }: RecapCardProps) {
       </div>
 
       {/* Typewriter text */}
-      <div className="font-mono text-sm leading-relaxed text-white/90 whitespace-pre-wrap">
+      <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-white/90">
         {displayed}
-        {/* Blinking cursor while typing */}
-        {displayed.length < (recap.failed ? 120 : recap.content.length) && (
-          <span className="animate-blink ml-0.5 inline-block w-0.5 h-[1em] bg-hot-pink align-middle" />
+        {/* Blinking cursor — hidden once all text is displayed */}
+        {displayed.length < text.length && (
+          <span className="animate-blink ml-0.5 inline-block h-[1em] w-0.5 align-middle bg-hot-pink" />
         )}
       </div>
     </div>

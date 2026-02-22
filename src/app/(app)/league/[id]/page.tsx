@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Leaderboard from "@/components/leaderboard/Leaderboard";
 import RecapCard from "@/components/recap/RecapCard";
+import RecapPending from "@/components/recap/RecapPending";
 import BanterFeed from "@/components/feed/BanterFeed";
 import type { LeaderboardEntry, BanterEntry, GameweekRecapData } from "@/types/matchday";
 
@@ -140,6 +142,31 @@ export default async function LeaguePage({ params }: { params: { id: string } })
         }
       : null;
 
+  // Recap section: show card if ready, pending placeholder if not yet generated
+  let recapSection: ReactNode = null;
+  if (activeGw) {
+    if (recapData) {
+      recapSection = <RecapCard recap={recapData} />;
+    } else if (activeGw.status === "FINISHED") {
+      // GW finished but AI job hasn't written the recap yet (short race window)
+      recapSection = (
+        <RecapPending
+          gameweekNumber={activeGw.number}
+          leagueName={league.name}
+          generating
+        />
+      );
+    } else {
+      // GW still active — matches in progress
+      recapSection = (
+        <RecapPending
+          gameweekNumber={activeGw.number}
+          leagueName={league.name}
+        />
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Leaderboard
@@ -150,7 +177,7 @@ export default async function LeaguePage({ params }: { params: { id: string } })
         inviteCode={league.code}
       />
 
-      {recapData && <RecapCard recap={recapData} />}
+      {recapSection}
 
       <BanterFeed entries={banterEntries} />
     </div>
