@@ -10,6 +10,7 @@ interface LeaderboardProps {
   currentUserId: string;
   leagueName: string;
   gameweekNumber: number;
+  inviteCode?: string;
 }
 
 interface OvertakeEvent {
@@ -29,9 +30,11 @@ export default function Leaderboard({
   currentUserId,
   leagueName,
   gameweekNumber,
+  inviteCode,
 }: LeaderboardProps) {
   const prevEntries = useRef<LeaderboardEntry[]>([]);
   const [overtake, setOvertake] = useState<OvertakeEvent | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   // Detect when a rival has overtaken the current user
   useEffect(() => {
@@ -54,6 +57,14 @@ export default function Leaderboard({
     prevEntries.current = entries;
   }, [entries, currentUserId]);
 
+  function copyCode() {
+    if (!inviteCode) return;
+    navigator.clipboard.writeText(inviteCode).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    });
+  }
+
   // Sort: others first, then pin current user at bottom
   const others = entries.filter((e) => e.userId !== currentUserId);
   const me = entries.find((e) => e.userId === currentUserId);
@@ -68,12 +79,25 @@ export default function Leaderboard({
         />
       )}
 
-      <div className="mb-3 flex items-center justify-between px-1">
+      <div className="mb-3 flex items-start justify-between px-1">
         <div>
           <h2 className="text-base font-bold text-white">{leagueName}</h2>
           <p className="text-xs text-white/40">Gameweek {gameweekNumber}</p>
         </div>
-        <span className="text-xs text-white/40">{entries.length} members</span>
+        <div className="text-right">
+          <p className="text-xs text-white/40">{entries.length} members</p>
+          {inviteCode && (
+            <button
+              onClick={copyCode}
+              className="mt-1 flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-mono text-white/60 hover:border-hot-pink/40 hover:text-white transition-colors"
+            >
+              <span>{inviteCode}</span>
+              <span className={codeCopied ? "text-neon-green" : "text-white/40"}>
+                {codeCopied ? "✓" : "⎘"}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Column headers */}

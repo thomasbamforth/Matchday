@@ -83,6 +83,24 @@ export default function LeaguesPage() {
         <p className="rounded-lg bg-hot-pink/20 px-3 py-2 text-sm text-hot-pink">{error}</p>
       )}
 
+      {/* Loading skeleton */}
+      {!leagues && (
+        <section className="space-y-2">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-3 animate-pulse"
+            >
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-32 rounded bg-white/10" />
+                <div className="h-3 w-24 rounded bg-white/5" />
+              </div>
+              <div className="h-3 w-10 rounded bg-white/5" />
+            </div>
+          ))}
+        </section>
+      )}
+
       {/* Existing leagues */}
       {leagues && leagues.length > 0 && (
         <section className="space-y-2">
