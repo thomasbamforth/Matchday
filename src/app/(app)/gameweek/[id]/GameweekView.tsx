@@ -1,17 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import FixtureCard from "@/components/fixtures/FixtureCard";
 import PredictionModal from "@/components/fixtures/PredictionModal";
+import ConnectionStatus from "@/components/fixtures/ConnectionStatus";
+import { useLiveScores } from "@/hooks/useLiveScores";
 import type { Fixture, UserPrediction } from "@/types/matchday";
-
-// Shape emitted by the backend pub/sub listener over SSE
-interface ScoreUpdateEvent {
-  fixtureId: string;
-  homeScore: number | null;
-  awayScore: number | null;
-  status: Fixture["status"];
-}
 
 interface GameweekViewProps {
   gameweekId: number;
@@ -28,37 +22,10 @@ export default function GameweekView({
   awayDayPickFixtureId,
   underdogBoostFixtureId,
 }: GameweekViewProps) {
-  const [liveFixtures, setLiveFixtures] = useState<Fixture[]>(fixtures);
+  const { fixtures: liveFixtures, connectionState } = useLiveScores(fixtures);
   const [predictions, setPredictions] = useState(initialPredictions);
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
   const [awayPickId, setAwayPickId] = useState(awayDayPickFixtureId);
-
-  // Subscribe to real-time score updates via SSE (WebSocket fallback)
-  useEffect(() => {
-    const es = new EventSource("/api/scores/sse");
-
-    es.addEventListener("score-update", (e: MessageEvent) => {
-      const update = JSON.parse(e.data) as ScoreUpdateEvent;
-      setLiveFixtures((prev) =>
-        prev.map((f) =>
-          f.id === update.fixtureId
-            ? {
-                ...f,
-                homeScore: update.homeScore,
-                awayScore: update.awayScore,
-                status: update.status,
-              }
-            : f
-        )
-      );
-    });
-
-    es.onerror = () => {
-      // EventSource reconnects automatically; no action needed
-    };
-
-    return () => es.close();
-  }, []);
 
   async function savePrediction(homeScore: number, awayScore: number) {
     if (!selectedFixture) return;
@@ -110,6 +77,8 @@ export default function GameweekView({
 
   return (
     <>
+      <ConnectionStatus state={connectionState} />
+
       <div className="space-y-6">
         {sections.map((section) => (
           <section key={section.label}>
