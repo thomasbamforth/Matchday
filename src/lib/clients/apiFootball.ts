@@ -85,8 +85,7 @@ async function apiFetch<T>(path: string): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
     headers: {
-      "x-rapidapi-key": API_KEY,
-      "x-rapidapi-host": new URL(BASE_URL).hostname,
+      "x-apisports-key": API_KEY,
     },
     next: { revalidate: 0 }, // never cache at the Next.js layer
   });

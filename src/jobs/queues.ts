@@ -5,13 +5,23 @@
  */
 
 import { Queue } from "bullmq";
-import IORedis from "ioredis";
 
-// BullMQ requires its own Redis connection (not shared with pub/sub).
-// URL is validated at connection time so importing this module is safe without REDIS_URL.
-const connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-  maxRetriesPerRequest: null, // required by BullMQ
-});
+// BullMQ bundles its own ioredis — passing an IORedis instance from the top-level
+// package causes a structural type conflict. Instead pass a plain options object;
+// BullMQ will create its own IORedis instance using its bundled copy.
+function parseRedisConnection(url: string) {
+  const u = new URL(url);
+  return {
+    host: u.hostname,
+    port: u.port ? parseInt(u.port, 10) : 6379,
+    ...(u.password && { password: decodeURIComponent(u.password) }),
+    maxRetriesPerRequest: null as null, // required by BullMQ
+  };
+}
+
+const connection = parseRedisConnection(
+  process.env.REDIS_URL ?? "redis://localhost:6379"
+);
 
 // ---------------------------------------------------------------------------
 // Job data types
@@ -31,6 +41,14 @@ export interface ScoreUpdateJobData {
 export interface AiRecapJobData {
   gameweekId: number;
   leagueId: string;
+}
+
+export interface UnderdogLockJobData {
+  fixtureId: string;    // DB fixture ID
+  externalId: string;   // API-Football fixture ID (used for Odds API lookup)
+  homeTeam: string;     // nickname — for logging
+  awayTeam: string;     // nickname — for logging
+  kickoff: string;      // ISO string
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +80,16 @@ export const aiRecapQueue = new Queue<AiRecapJobData>("ai-recap", {
     attempts: 3,
     backoff: { type: "exponential", delay: 10000 },
     removeOnComplete: 50,
+    removeOnFail: 200,
+  },
+});
+
+export const underdogLockQueue = new Queue<UnderdogLockJobData>("underdog-lock", {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: "exponential", delay: 5000 },
+    removeOnComplete: 100,
     removeOnFail: 200,
   },
 });

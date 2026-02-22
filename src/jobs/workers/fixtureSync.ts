@@ -9,7 +9,12 @@
  */
 
 import { Worker, type Job } from "bullmq";
-import { bullmqConnection, fixtureSyncQueue, scoreUpdateQueue, type FixtureSyncJobData } from "@/jobs/queues";
+import {
+  bullmqConnection,
+  scoreUpdateQueue,
+  underdogLockQueue,
+  type FixtureSyncJobData,
+} from "@/jobs/queues";
 import { getFixturesByGameweek } from "@/lib/clients/apiFootball";
 import { redis, createPublisher } from "@/lib/redis";
 import { LAST_DAILY_SYNC_KEY, SCORE_UPDATE_CHANNEL } from "@/lib/redisKeys";
@@ -42,13 +47,16 @@ function isInActiveWindow(kickoffs: Date[]): boolean {
 async function process(job: Job<FixtureSyncJobData>): Promise<void> {
   const { gameweekNumber, season, force } = job.data;
 
-  // Outside active window, only sync once per day
-  const gameweek = await prisma.gameweek.findUnique({
+  // Auto-create the Gameweek record if it hasn't been seeded yet.
+  // Schema uses gameweek number as both id and number (no auto-increment).
+  const gameweek = await prisma.gameweek.upsert({
     where: { number: gameweekNumber },
+    create: { id: gameweekNumber, number: gameweekNumber, status: "UPCOMING" },
+    update: {},
     include: { fixtures: { select: { kickoff: true } } },
   });
 
-  const kickoffs = gameweek?.fixtures.map((f) => f.kickoff) ?? [];
+  const kickoffs = gameweek.fixtures.map((f) => f.kickoff);
   const inWindow = force || isInActiveWindow(kickoffs);
 
   if (!inWindow) {
@@ -106,15 +114,36 @@ async function process(job: Job<FixtureSyncJobData>): Promise<void> {
     }
 
     // Enqueue score-update job when a fixture transitions to FINISHED
-    if (
-      apiFixture.status === "FINISHED" &&
-      existing?.status !== "FINISHED" &&
-      gameweek
-    ) {
-      await scoreUpdateQueue.add("score-update", {
+    if (apiFixture.status === "FINISHED" && existing?.status !== "FINISHED") {
+      await scoreUpdateQueue.add("score-update" as string, {
         fixtureId: updated.id,
         gameweekId: gameweek.id,
       });
+    }
+
+    // Schedule underdog-lock job for new upcoming fixtures (12h before kickoff).
+    // jobId is stable so re-runs don't create duplicates.
+    if (!existing && apiFixture.status === "UPCOMING") {
+      const lockAt =
+        apiFixture.kickoff.getTime() - 12 * 60 * 60 * 1000;
+      const delay = lockAt - Date.now();
+
+      if (delay > 0) {
+        await underdogLockQueue.add(
+          "underdog-lock" as string,
+          {
+            fixtureId: updated.id,
+            externalId: apiFixture.externalId,
+            homeTeam: apiFixture.homeTeam,
+            awayTeam: apiFixture.awayTeam,
+            kickoff: apiFixture.kickoff.toISOString(),
+          },
+          {
+            delay,
+            jobId: `underdog-lock-${apiFixture.externalId}`,
+          }
+        );
+      }
     }
   }
 

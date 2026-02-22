@@ -12,6 +12,7 @@
 import { startFixtureSyncWorker } from "@/jobs/workers/fixtureSync";
 import { startScoreUpdateWorker } from "@/jobs/workers/scoreUpdate";
 import { startAiRecapWorker } from "@/jobs/workers/aiRecap";
+import { startUnderdogLockWorker } from "@/jobs/workers/underdogLock";
 import { startScheduler } from "@/jobs/scheduler";
 
 async function main(): Promise<void> {
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
   startFixtureSyncWorker();
   startScoreUpdateWorker();
   startAiRecapWorker();
+  startUnderdogLockWorker();
 
   await startScheduler(gameweekNumber, season);
 

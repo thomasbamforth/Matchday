@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import FixtureCard from "@/components/fixtures/FixtureCard";
 import PredictionModal from "@/components/fixtures/PredictionModal";
 import type { Fixture, UserPrediction } from "@/types/matchday";
+
+// Shape emitted by the backend pub/sub listener over SSE
+interface ScoreUpdateEvent {
+  fixtureId: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  status: Fixture["status"];
+}
 
 interface GameweekViewProps {
   gameweekId: number;
@@ -18,9 +26,37 @@ export default function GameweekView({
   initialPredictions,
   awayDayPickFixtureId,
 }: GameweekViewProps) {
+  const [liveFixtures, setLiveFixtures] = useState<Fixture[]>(fixtures);
   const [predictions, setPredictions] = useState(initialPredictions);
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
   const [awayPickId, setAwayPickId] = useState(awayDayPickFixtureId);
+
+  // Subscribe to real-time score updates via SSE (WebSocket fallback)
+  useEffect(() => {
+    const es = new EventSource("/api/scores/sse");
+
+    es.addEventListener("score-update", (e: MessageEvent) => {
+      const update = JSON.parse(e.data) as ScoreUpdateEvent;
+      setLiveFixtures((prev) =>
+        prev.map((f) =>
+          f.id === update.fixtureId
+            ? {
+                ...f,
+                homeScore: update.homeScore,
+                awayScore: update.awayScore,
+                status: update.status,
+              }
+            : f
+        )
+      );
+    });
+
+    es.onerror = () => {
+      // EventSource reconnects automatically; no action needed
+    };
+
+    return () => es.close();
+  }, []);
 
   async function savePrediction(homeScore: number, awayScore: number) {
     if (!selectedFixture) return;
@@ -58,10 +94,10 @@ export default function GameweekView({
     }
   }
 
-  const upcoming = fixtures.filter((f) => f.status === "UPCOMING");
-  const live     = fixtures.filter((f) => f.status === "LIVE");
-  const finished = fixtures.filter((f) => f.status === "FINISHED");
-  const postponed = fixtures.filter((f) => f.status === "POSTPONED");
+  const upcoming  = liveFixtures.filter((f) => f.status === "UPCOMING");
+  const live      = liveFixtures.filter((f) => f.status === "LIVE");
+  const finished  = liveFixtures.filter((f) => f.status === "FINISHED");
+  const postponed = liveFixtures.filter((f) => f.status === "POSTPONED");
 
   const sections = [
     { label: "Live",      items: live },

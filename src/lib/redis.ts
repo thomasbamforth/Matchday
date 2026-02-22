@@ -23,10 +23,15 @@ export function getRedis(): Redis {
   return client;
 }
 
-/** Convenience proxy — call-sites can use `redis.get(...)` as before. */
+/** Convenience proxy — call-sites can use `redis.get(...)` as before.
+ *  Methods are bound to the Redis instance so `this` is correct inside ioredis. */
 export const redis = new Proxy({} as Redis, {
   get(_target, prop) {
-    return (getRedis() as never)[prop];
+    const instance = getRedis();
+    const value = (instance as never)[prop as string];
+    return typeof value === "function"
+      ? (value as (...args: unknown[]) => unknown).bind(instance)
+      : value;
   },
 });
 

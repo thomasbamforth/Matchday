@@ -23,7 +23,7 @@ export async function startScheduler(
   }
 
   await fixtureSyncQueue.add(
-    "fixture-sync",
+    "fixture-sync" as string,
     { gameweekNumber, season },
     {
       repeat: { every: POLL_INTERVAL_MS },

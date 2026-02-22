@@ -175,7 +175,7 @@ async function process(job: Job<ScoreUpdateJobData>): Promise<void> {
 
   await Promise.all(
     leagues.map((l) =>
-      aiRecapQueue.add("ai-recap", { gameweekId, leagueId: l.id })
+      aiRecapQueue.add("ai-recap" as string, { gameweekId, leagueId: l.id })
     )
   );
 }
