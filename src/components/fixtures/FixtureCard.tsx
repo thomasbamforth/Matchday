@@ -106,20 +106,25 @@ export default function FixtureCard({
   const outcome = prediction ? outcomeLabel(prediction, fixture) : null;
   const isPostponed = fixture.status === "POSTPONED";
 
+  const cardClassName = [
+    "relative w-full overflow-hidden rounded-xl border px-4 py-3 text-left transition-colors",
+    flashing ? "animate-cyan-flash" : "",
+    showFireworks ? "animate-fireworks" : "",
+    isPostponed
+      ? "border-white/10 opacity-50"
+      : "border-white/10 hover:border-white/20 hover:bg-white/5",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  // Render as <div> when non-interactive (e.g. dashboard preview) to avoid
+  // invalid <a><button> nesting when wrapped in a Next.js <Link>.
+  const CardRoot = onTap ? "button" : "div";
+
   return (
-    <button
-      onClick={onTap}
-      disabled={!onTap}
-      className={[
-        "relative w-full overflow-hidden rounded-xl border px-4 py-3 text-left transition-colors",
-        flashing ? "animate-cyan-flash" : "",
-        showFireworks ? "animate-fireworks" : "",
-        isPostponed
-          ? "border-white/10 opacity-50"
-          : "border-white/10 hover:border-white/20 hover:bg-white/5",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+    <CardRoot
+      {...(onTap ? { onClick: onTap } : {})}
+      className={cardClassName}
     >
       {/* Trophy slide overlay */}
       {showTrophy && (
@@ -215,6 +220,6 @@ export default function FixtureCard({
           <span className="text-xs text-hot-pink">Tap to predict →</span>
         </div>
       )}
-    </button>
+    </CardRoot>
   );
 }
