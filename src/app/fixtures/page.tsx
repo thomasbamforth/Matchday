@@ -3,6 +3,9 @@ import type { Fixture } from "@/types/matchday";
 import FixturesList from "./FixturesList";
 import Link from "next/link";
 
+// DB reads need fresh data on every request — opt out of static rendering
+export const dynamic = "force-dynamic";
+
 async function getCurrentGameweek() {
   // Try ACTIVE first, then earliest UPCOMING, then most recent FINISHED
   const gameweek =
