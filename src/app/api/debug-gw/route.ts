@@ -8,7 +8,7 @@ export async function GET() {
   let dbHost = "unknown";
   try {
     const u = new URL(dbUrl);
-    dbHost = `${u.protocol}//${u.hostname}:${u.port}`;
+    dbHost = `${u.protocol}//${u.username.split(":")[0]}@${u.hostname}:${u.port}`;
   } catch { /* noop */ }
 
   const gws = await prisma.gameweek.findMany({
