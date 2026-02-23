@@ -16,6 +16,10 @@ export async function POST(request: NextRequest) {
   const fixture = await prisma.fixture.findUnique({ where: { id: fixtureId } });
   if (!fixture) return NextResponse.json({ error: "Fixture not found" }, { status: 404 });
 
+  if (fixture.postponed) {
+    return NextResponse.json({ error: "Cannot pick a postponed fixture" }, { status: 409 });
+  }
+
   // Lock at kickoff of the chosen fixture (§9.4)
   if (new Date() >= fixture.kickoff) {
     return NextResponse.json({ error: "Away Day Pick locked — match has kicked off" }, { status: 409 });
@@ -29,7 +33,8 @@ export async function POST(request: NextRequest) {
       fixtureId,
       team: fixture.awayTeam,
     },
-    update: { fixtureId, team: fixture.awayTeam },
+    // voided: false — re-enables a previously voided (postponed) pick slot
+    update: { fixtureId, team: fixture.awayTeam, voided: false },
   });
 
   return NextResponse.json(pick);

@@ -29,6 +29,22 @@ const ACTIVE_WINDOW_POST_FINAL_MS = 120 * 60 * 1000; // 120 min after last KO
 const publisher = createPublisher();
 
 // ---------------------------------------------------------------------------
+// Postponement handling — void Away Day Picks when a fixture is postponed
+// ---------------------------------------------------------------------------
+
+async function voidPicksForPostponedFixture(fixtureId: string): Promise<void> {
+  const result = await prisma.awayDayPick.updateMany({
+    where: { fixtureId, voided: false },
+    data: { voided: true },
+  });
+  if (result.count > 0) {
+    console.log(
+      `[fixture-sync] Voided ${result.count} Away Day Pick(s) for postponed fixture ${fixtureId}`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Active window detection
 // ---------------------------------------------------------------------------
 
@@ -141,6 +157,13 @@ async function process(job: Job<FixtureSyncJobData>): Promise<void> {
         fixtureId: updated.id,
         gameweekId: gameweek.id,
       });
+    }
+
+    // Void Away Day Picks when a fixture is newly postponed (§9.7)
+    if (apiFixture.status === "POSTPONED" && existing?.status !== "POSTPONED") {
+      voidPicksForPostponedFixture(updated.id).catch((err) =>
+        console.warn("[fixture-sync] Failed to void picks for postponed fixture:", err)
+      );
     }
 
     // Schedule underdog-lock job for new upcoming fixtures (12h before kickoff).
