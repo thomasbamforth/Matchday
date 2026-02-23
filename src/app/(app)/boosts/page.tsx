@@ -57,12 +57,19 @@ export default async function BoostsPage() {
   const slot1 = chips.find((c) => c.slot === 1);
   const slot2 = chips.find((c) => c.slot === 2);
 
+  // Slot-1 is expired if: DB flag is set, OR we're in GW20+ and it was never activated.
+  // The second condition handles users who never created a chip record — there's no DB row
+  // to mark, so we derive expiry from the current gameweek instead (§5.3).
+  const isAfterGw19 = (activeGw?.number ?? 0) > 19;
+  const slot1Expired =
+    (slot1?.expired ?? false) || (isAfterGw19 && !slot1?.activatedAt);
+
   const chipInfos: BoostChipInfo[] = [
     {
       slot: 1,
       type: (slot1?.type ?? null) as BoostChipInfo["type"],
       activated: !!slot1?.activatedAt,
-      expired: slot1?.expired ?? false,
+      expired: slot1Expired,
       activatedGameweek: slot1?.gameweekId ?? undefined,
       activatedFixtureId: slot1?.fixtureId ?? undefined,
     },

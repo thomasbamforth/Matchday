@@ -155,6 +155,20 @@ async function calculateGameweekSummary(userId: string, gameweekId: number): Pro
 }
 
 // ---------------------------------------------------------------------------
+// GW19 boost expiry — slot-1 chips unused after GW19 are permanently expired
+// ---------------------------------------------------------------------------
+
+async function expireSlot1Chips(): Promise<void> {
+  const result = await prisma.boostChip.updateMany({
+    where: { slot: 1, activatedAt: null, expired: false },
+    data: { expired: true },
+  });
+  console.log(
+    `[score-update] GW19 finished — expired ${result.count} unused slot-1 boost chip(s)`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Rival overtake detection
 // ---------------------------------------------------------------------------
 
@@ -292,10 +306,15 @@ async function process(job: Job<ScoreUpdateJobData>): Promise<void> {
   if (unfinished > 0) return; // more fixtures still running
 
   // Step 9: mark gameweek FINISHED
-  await prisma.gameweek.update({
+  const finishedGw = await prisma.gameweek.update({
     where: { id: gameweekId },
     data: { status: "FINISHED" },
   });
+
+  // Expire all unused slot-1 boost chips after GW19 ends (§5.3)
+  if (finishedGw.number === 19) {
+    await expireSlot1Chips();
+  }
 
   // Step 10: enqueue ai-recap for every league with at least one predictor this GW
   const leagues = await prisma.league.findMany({
