@@ -148,12 +148,17 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-bold uppercase tracking-widest text-white/40">
               Fixtures
             </h2>
-            <Link
-              href={`/gameweek/${gameweek.id}`}
-              className="text-xs font-semibold text-hot-pink"
-            >
-              {totalFixtures > 3 ? `All (+${totalFixtures - 3} more)` : "All"}
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href="/gameweeks" className="text-xs text-white/30 hover:text-white/60">
+                Past weeks
+              </Link>
+              <Link
+                href={`/gameweek/${gameweek.id}`}
+                className="text-xs font-semibold text-hot-pink"
+              >
+                {totalFixtures > 3 ? `All (+${totalFixtures - 3} more)` : "All"}
+              </Link>
+            </div>
           </div>
           <div className="space-y-2">
             {gameweek.fixtures.map((f) => {
