@@ -151,6 +151,15 @@ async function process(job: Job<FixtureSyncJobData>): Promise<void> {
       ).catch((err) => console.warn("[fixture-sync] Goal alert failed:", err));
     }
 
+    // Transition gameweek UPCOMING → ACTIVE when the first fixture goes LIVE.
+    // updateMany with status: "UPCOMING" guard is idempotent — no-op once active.
+    if (apiFixture.status === "LIVE" && existing?.status !== "LIVE") {
+      await prisma.gameweek.updateMany({
+        where: { id: gameweek.id, status: "UPCOMING" },
+        data: { status: "ACTIVE" },
+      });
+    }
+
     // Enqueue score-update job when a fixture transitions to FINISHED
     if (apiFixture.status === "FINISHED" && existing?.status !== "FINISHED") {
       await scoreUpdateQueue.add("score-update" as string, {

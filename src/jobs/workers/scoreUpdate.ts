@@ -152,6 +152,27 @@ async function calculateGameweekSummary(userId: string, gameweekId: number): Pro
     create: { userId, gameweekId, rawPoints, finalPoints },
     update: { rawPoints, finalPoints },
   });
+
+  // Persist Away Day Pick outcome — used by the AI recap payload (§7).
+  // Falls back to a direct fixture query if the user has no prediction on
+  // that match (rare but possible).
+  if (awayDayPick && !awayDayPick.voided) {
+    const f =
+      predictions.find((p) => p.fixtureId === awayDayPick.fixtureId)?.fixture ??
+      await prisma.fixture.findUnique({
+        where: { id: awayDayPick.fixtureId },
+        select: { homeScore: true, awayScore: true },
+      });
+    if (f && f.homeScore !== null && f.awayScore !== null) {
+      const won = f.awayScore > f.homeScore;
+      if (awayDayPick.won !== won) {
+        await prisma.awayDayPick.update({
+          where: { id: awayDayPick.id },
+          data: { won },
+        });
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
