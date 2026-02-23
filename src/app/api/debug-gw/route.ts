@@ -16,10 +16,20 @@ export async function GET() {
     orderBy: { number: "asc" },
   });
 
-  // Raw SQL to check if RLS is blocking ORM
+  // Raw SQL checks
   const raw = await prisma.$queryRaw<{ number: number; status: string }[]>`
     SELECT number, status FROM "Gameweek" ORDER BY number ASC
   `;
 
-  return NextResponse.json({ count: gws.length, rawCount: raw.length, dbHost, gameweeks: gws, raw });
+  const schemaInfo = await prisma.$queryRaw<{ current_schema: string; search_path: string }[]>`
+    SELECT current_schema(), current_setting('search_path') as search_path
+  `;
+
+  const tableList = await prisma.$queryRaw<{ tablename: string; schemaname: string }[]>`
+    SELECT schemaname, tablename FROM pg_tables
+    WHERE schemaname NOT IN ('pg_catalog','information_schema')
+    ORDER BY schemaname, tablename
+  `;
+
+  return NextResponse.json({ count: gws.length, rawCount: raw.length, dbHost, gameweeks: gws, raw, schemaInfo, tableList });
 }
