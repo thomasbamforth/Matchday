@@ -5,6 +5,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
 
+function IconPodium({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="14" width="5" height="7" rx="1" />
+      <rect x="9" y="9" width="6" height="12" rx="1" />
+      <rect x="17" y="11" width="5" height="10" rx="1" />
+    </svg>
+  );
+}
+
 interface LeagueSummary {
   id: string;
   name: string;
@@ -115,6 +125,23 @@ export default function LeaguesPage() {
           Compete with your mates. Create a league or join one with an invite code.
         </p>
       </header>
+
+      {/* ---- Global Rankings entry ---- */}
+      <Link
+        href="/leaderboard"
+        className="flex items-center gap-4 rounded-xl border border-white/10 px-4 py-3 hover:bg-white/5"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-hot-pink/10">
+          <IconPodium className="h-5 w-5 text-hot-pink" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-white">Global Rankings</p>
+          <p className="mt-0.5 text-xs text-white/40">
+            All players ranked by season total
+          </p>
+        </div>
+        <span className="shrink-0 text-xs text-hot-pink">View →</span>
+      </Link>
 
       {/* ---- Existing leagues ---- */}
       <section>
