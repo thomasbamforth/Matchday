@@ -1,0 +1,36 @@
+# Matchday — Railway deployment
+#
+# This file configures the web service (Next.js + WebSocket server).
+#
+# You also need a SECOND Railway service (background worker) pointing at
+# the same repo with the following overrides set in the Railway dashboard:
+#   Build command:  npm ci && npx prisma generate
+#   Start command:  npm run workers
+#   No health check needed for the worker service.
+#
+# Required env vars for BOTH services — set in Railway dashboard:
+#   DATABASE_URL, REDIS_URL
+#   SOCCER_API_KEY, SOCCER_API_BASE_URL, ODDS_API_KEY, ODDS_API_BASE_URL
+#   OPENAI_API_KEY
+#   FCM_PROJECT_ID, FIREBASE_ADMIN_CREDENTIALS
+#
+# Web service only:
+#   NEXTAUTH_SECRET, NEXTAUTH_URL
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+#   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
+#   NEXT_PUBLIC_FIREBASE_* (six vars — see .env for names)
+#
+# Worker service only:
+#   CURRENT_SEASON   (e.g. 2025 for the 2025/26 season)
+#   CURRENT_GAMEWEEK (update each week)
+
+[build]
+builder = "nixpacks"
+buildCommand = "npm ci && npx prisma generate && npm run build"
+
+[deploy]
+startCommand = "npx prisma migrate deploy && npm run start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

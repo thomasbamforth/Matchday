@@ -1,0 +1,129 @@
+# Matchday — Render deployment (Infrastructure as Code)
+#
+# Two services share the same repo:
+#   matchday-web     — Next.js + WebSocket server  (npm run start)
+#   matchday-workers — BullMQ background workers   (npm run workers)
+#
+# Before deploying:
+#   1. Create a PostgreSQL database on Render (or external) and set DATABASE_URL
+#   2. Create a Redis instance on Render (or Upstash) and set REDIS_URL
+#   3. Fill in all `sync: false` env vars in the Render dashboard
+
+services:
+  # ---------------------------------------------------------------------------
+  # Web service — Next.js pages + API routes + WebSocket server
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: matchday-web
+    runtime: node
+    region: oregon
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Database
+      - key: DATABASE_URL
+        sync: false
+
+      # Redis
+      - key: REDIS_URL
+        sync: false
+
+      # NextAuth
+      - key: NEXTAUTH_SECRET
+        generateValue: true       # Render can auto-generate secure secrets
+      - key: NEXTAUTH_URL
+        sync: false               # Set to your Render web service URL
+
+      # OAuth providers
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+
+      # External APIs (needed for SSR data)
+      - key: SOCCER_API_KEY
+        sync: false
+      - key: SOCCER_API_BASE_URL
+        value: https://v3.football.api-sports.io
+      - key: ODDS_API_BASE_URL
+        value: https://api.the-odds-api.com
+
+      # OpenAI — not called from the web process, but kept here for completeness
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Firebase (server — Admin SDK)
+      - key: FCM_PROJECT_ID
+        sync: false
+      - key: FIREBASE_ADMIN_CREDENTIALS
+        sync: false               # JSON string of the Firebase service account key
+
+      # Firebase (client — browser SDK, safe to expose)
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # Worker service — BullMQ fixture sync, score update, AI recap, underdog lock
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: matchday-workers
+    runtime: node
+    region: oregon
+    # No Next.js build needed — just install deps and generate the Prisma client
+    buildCommand: npm ci && npx prisma generate
+    startCommand: npm run workers
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Database
+      - key: DATABASE_URL
+        sync: false
+
+      # Redis
+      - key: REDIS_URL
+        sync: false
+
+      # External APIs (all used by workers)
+      - key: SOCCER_API_KEY
+        sync: false
+      - key: SOCCER_API_BASE_URL
+        value: https://v3.football.api-sports.io
+      - key: ODDS_API_KEY
+        sync: false
+      - key: ODDS_API_BASE_URL
+        value: https://api.the-odds-api.com
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Firebase (server — for push notifications)
+      - key: FCM_PROJECT_ID
+        sync: false
+      - key: FIREBASE_ADMIN_CREDENTIALS
+        sync: false
+
+      # Worker bootstrap — update CURRENT_GAMEWEEK each week
+      - key: CURRENT_SEASON
+        sync: false               # e.g. 2025 (for the 2025/26 season)
+      - key: CURRENT_GAMEWEEK
+        sync: false               # e.g. 26
