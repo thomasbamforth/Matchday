@@ -25,11 +25,11 @@ async function getData(gameweekId: number, userId: string) {
     }),
     prisma.gameweek.findUnique({
       where: { id: gameweekId - 1 },
-      select: { id: true, number: true },
+      select: { id: true, number: true, seasonNumber: true },
     }),
     prisma.gameweek.findUnique({
       where: { id: gameweekId + 1 },
-      select: { id: true, number: true },
+      select: { id: true, number: true, seasonNumber: true },
     }),
   ]);
 
