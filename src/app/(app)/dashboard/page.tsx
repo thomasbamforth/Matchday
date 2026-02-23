@@ -87,7 +87,7 @@ export default async function DashboardPage() {
           Hey, {session!.user.name?.split(" ")[0] ?? "Gaffer"}
         </h1>
         {gameweek ? (
-          <p className="mt-0.5 text-sm text-white/50">Gameweek {gameweek.number}</p>
+          <p className="mt-0.5 text-sm text-white/50">Gameweek {gameweek.seasonNumber || gameweek.number}</p>
         ) : (
           <p className="mt-0.5 text-sm text-white/50">No active gameweek</p>
         )}

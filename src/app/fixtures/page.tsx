@@ -57,7 +57,7 @@ export default async function FixturesPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-black text-white">
-            {gameweek ? `Gameweek ${gameweek.number}` : "Fixtures"}
+            {gameweek ? `Gameweek ${gameweek.seasonNumber || gameweek.number}` : "Fixtures"}
           </h1>
           {gameweek && (
             <p className="mt-0.5 text-sm capitalize text-white/40">
@@ -79,7 +79,7 @@ export default async function FixturesPage() {
           canPredict && (
             <div className="mt-8 rounded-xl border border-hot-pink/20 bg-hot-pink/5 px-4 py-5 text-center">
               <p className="text-sm font-semibold text-white">
-                Gameweek {gameweek!.number} predictions are open
+                Gameweek {gameweek!.seasonNumber || gameweek!.number} predictions are open
               </p>
               <Link
                 href={`/gameweek/${gameweek!.id}`}

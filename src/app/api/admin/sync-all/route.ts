@@ -4,20 +4,28 @@ import { toNickname } from "@/lib/clubNicknames";
 
 // Temporary — fetches ALL season fixtures in ONE API call, groups by round, upserts everything.
 // Remove after use.
-export async function POST() {
+// Body: { season?: number }
+//   season=2024 → 2024/25 season, stored as GW IDs 1-38
+//   season=2025 → 2025/26 season, stored as GW IDs 39-76
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({})) as { season?: number };
+  const season = body.season ?? 2025;
+  // 2024/25 uses IDs 1-38, 2025/26 uses 39-76, 2026/27 would use 77-114, etc.
+  const idOffset = (season - 2024) * 38;
+
   const API_KEY = process.env.SOCCER_API_KEY;
   const BASE_URL = process.env.SOCCER_API_BASE_URL;
   if (!API_KEY || !BASE_URL) {
     return NextResponse.json({ error: "Missing SOCCER_API_KEY or SOCCER_API_BASE_URL" }, { status: 500 });
   }
 
-  const url = `${BASE_URL}/fixtures?league=39&season=2024`;
+  const url = `${BASE_URL}/fixtures?league=39&season=${season}`;
   const res = await fetch(url, { headers: { "x-apisports-key": API_KEY } });
   if (!res.ok) return NextResponse.json({ error: `API ${res.status}: ${await res.text()}` }, { status: 500 });
 
   const json = await res.json() as { response: any[] };
   const items: any[] = json.response;
-  if (!items.length) return NextResponse.json({ error: "No fixtures returned from API" });
+  if (!items.length) return NextResponse.json({ error: "No fixtures returned from API — season may not exist yet" });
 
   const statusMap: Record<string, "UPCOMING" | "LIVE" | "FINISHED" | "POSTPONED"> = {
     FT: "FINISHED", AET: "FINISHED", PEN: "FINISHED",
@@ -26,7 +34,6 @@ export async function POST() {
   };
   const toStatus = (s: string) => statusMap[s] ?? "UPCOMING";
 
-  // Group by gameweek number (extracted from round string "Regular Season - N")
   const byGW = new Map<number, any[]>();
   for (const item of items) {
     const m = item.league.round.match(/(\d+)$/);
@@ -38,15 +45,16 @@ export async function POST() {
 
   const summary: Record<string, unknown> = {};
 
-  for (const [gwNumber, gwItems] of Array.from(byGW.entries()).sort((a, b) => a[0] - b[0])) {
+  for (const [seasonNumber, gwItems] of Array.from(byGW.entries()).sort((a, b) => a[0] - b[0])) {
+    const dbNumber = idOffset + seasonNumber; // unique sequential ID across seasons
     const allFinished = gwItems.every((i) => ["FT", "AET", "PEN"].includes(i.fixture.status.short));
     const anyLive     = gwItems.some((i)  => ["1H", "HT", "2H", "ET", "P"].includes(i.fixture.status.short));
     const gwStatus    = anyLive ? "ACTIVE" : allFinished ? "FINISHED" : "UPCOMING";
 
     const gwRec = await prisma.gameweek.upsert({
-      where: { number: gwNumber },
-      create: { id: gwNumber, number: gwNumber, status: gwStatus },
-      update: { status: gwStatus },
+      where: { number: dbNumber },
+      create: { id: dbNumber, number: dbNumber, season, seasonNumber, status: gwStatus },
+      update: { status: gwStatus, season, seasonNumber },
     });
 
     for (const item of gwItems) {
@@ -74,8 +82,8 @@ export async function POST() {
       });
     }
 
-    summary[`gw${gwNumber}`] = { fixtures: gwItems.length, status: gwStatus };
+    summary[`gw${seasonNumber}`] = { dbId: dbNumber, fixtures: gwItems.length, status: gwStatus };
   }
 
-  return NextResponse.json({ totalFixtures: items.length, gameweeks: byGW.size, summary });
+  return NextResponse.json({ season, totalFixtures: items.length, gameweeks: byGW.size, summary });
 }

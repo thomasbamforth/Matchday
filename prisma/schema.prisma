@@ -95,11 +95,13 @@ enum GameweekStatus {
 }
 
 model Gameweek {
-  id        Int            @id
-  number    Int            @unique
-  status    GameweekStatus @default(UPCOMING)
-  startDate DateTime?
-  endDate   DateTime?
+  id           Int            @id
+  number       Int            @unique  // sequential across seasons; use seasonNumber for display
+  season       Int            @default(2024) // API-Football season year (2024 = 2024/25, 2025 = 2025/26)
+  seasonNumber Int            @default(0)    // 1–38 within the season
+  status       GameweekStatus @default(UPCOMING)
+  startDate    DateTime?
+  endDate      DateTime?
 
   fixtures          Fixture[]
   awayDayPicks      AwayDayPick[]

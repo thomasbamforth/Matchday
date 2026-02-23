@@ -75,7 +75,7 @@ export default async function GameweekPage({ params }: { params: { id: string } 
               href={`/gameweek/${prevGw.id}`}
               className="text-sm font-semibold text-hot-pink"
             >
-              ← GW{prevGw.number}
+              ← GW{prevGw.seasonNumber || prevGw.number}
             </Link>
           ) : (
             <span />
@@ -90,14 +90,14 @@ export default async function GameweekPage({ params }: { params: { id: string } 
               href={`/gameweek/${nextGw.id}`}
               className="text-sm font-semibold text-hot-pink"
             >
-              GW{nextGw.number} →
+              GW{nextGw.seasonNumber || nextGw.number} →
             </Link>
           ) : (
             <span />
           )}
         </div>
 
-        <h1 className="text-2xl font-black text-white">Gameweek {gameweek.number}</h1>
+        <h1 className="text-2xl font-black text-white">Gameweek {gameweek.seasonNumber || gameweek.number}</h1>
         <p className="text-sm text-white/50 capitalize">{gameweek.status.toLowerCase()}</p>
       </header>
 
