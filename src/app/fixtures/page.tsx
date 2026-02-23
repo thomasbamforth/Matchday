@@ -7,20 +7,25 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 async function getCurrentGameweek() {
-  // Try ACTIVE first, then earliest UPCOMING, then most recent FINISHED
-  const gameweek =
+  const fixturesFilter = { fixtures: { some: {} } } as const;
+
+  // ACTIVE with fixtures → earliest UPCOMING with fixtures → most recent FINISHED with fixtures
+  return (
     (await prisma.gameweek.findFirst({
-      where: { status: { in: ["ACTIVE", "UPCOMING"] } },
+      where: { status: "ACTIVE", ...fixturesFilter },
+      include: { fixtures: { orderBy: { kickoff: "asc" } } },
+    })) ??
+    (await prisma.gameweek.findFirst({
+      where: { status: "UPCOMING", ...fixturesFilter },
       orderBy: { number: "asc" },
       include: { fixtures: { orderBy: { kickoff: "asc" } } },
     })) ??
     (await prisma.gameweek.findFirst({
-      where: { status: "FINISHED" },
+      where: { status: "FINISHED", ...fixturesFilter },
       orderBy: { number: "desc" },
       include: { fixtures: { orderBy: { kickoff: "asc" } } },
-    }));
-
-  return gameweek;
+    }))
+  );
 }
 
 export default async function FixturesPage() {
