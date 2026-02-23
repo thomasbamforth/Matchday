@@ -152,6 +152,9 @@ export default async function DashboardPage() {
               <Link href="/gameweeks" className="text-xs text-white/30 hover:text-white/60">
                 Past weeks
               </Link>
+              <Link href="/fixtures" className="text-xs text-white/30 hover:text-white/60">
+                Fixtures
+              </Link>
               <Link
                 href={`/gameweek/${gameweek.id}`}
                 className="text-xs font-semibold text-hot-pink"
