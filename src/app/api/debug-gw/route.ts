@@ -1,6 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+// Write a row and immediately read it back in the SAME request
+export async function POST() {
+  const TEST_ID = 9999;
+  await prisma.gameweek.upsert({
+    where: { id: TEST_ID },
+    create: { id: TEST_ID, number: TEST_ID, status: "UPCOMING" },
+    update: {},
+  });
+  const readback = await prisma.gameweek.findUnique({ where: { id: TEST_ID } });
+  await prisma.gameweek.delete({ where: { id: TEST_ID } });
+  return NextResponse.json({ wrote: true, readback });
+}
+
 // Temporary diagnostic endpoint — remove after debugging
 export async function GET() {
   const dbUrl = process.env.DATABASE_URL ?? "not set";
