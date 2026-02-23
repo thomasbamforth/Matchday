@@ -9,7 +9,7 @@
 
 import { redis } from "@/lib/redis";
 import { toNickname } from "@/lib/clubNicknames";
-import { FIXTURE_CACHE_KEY, FIXTURE_CACHE_TTL } from "@/lib/redisKeys";
+import { FIXTURE_CACHE_KEY, FIXTURE_CACHE_TTL, STANDINGS_CACHE_KEY, STANDINGS_CACHE_TTL } from "@/lib/redisKeys";
 
 const BASE_URL = process.env.SOCCER_API_BASE_URL!;
 const API_KEY = process.env.SOCCER_API_KEY!;
@@ -131,6 +131,53 @@ export async function getFixturesByGameweek(
 
   await redis.setex(cacheKey, FIXTURE_CACHE_TTL, JSON.stringify(fixtures));
   return fixtures;
+}
+
+// ---------------------------------------------------------------------------
+// Standings shapes (API-Football v3)
+// ---------------------------------------------------------------------------
+
+interface ApiStandingEntry {
+  rank: number;
+  team: { name: string };
+}
+
+interface ApiStandingsResponse {
+  response: [{
+    league: {
+      standings: ApiStandingEntry[][];
+    };
+  }];
+}
+
+/**
+ * Returns a nickname → league table position map (1 = top) for the season.
+ *
+ * Used as the fallback signal when the Odds API is unavailable: the
+ * underdogLock worker passes these positions to getUnderdogByTablePosition()
+ * to flag teams sitting 5+ places below their opponent (CLAUDE.md §5.3).
+ *
+ * Cached for 6 hours — standings only change after match days.
+ */
+export async function getTeamPositions(
+  season: number
+): Promise<Record<string, number>> {
+  const cacheKey = STANDINGS_CACHE_KEY(season);
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached) as Record<string, number>;
+
+  const data = await apiFetch<ApiStandingsResponse>(
+    `/standings?league=${PL_LEAGUE_ID}&season=${season}`
+  );
+
+  const entries = data.response[0]?.league.standings[0] ?? [];
+  const positions: Record<string, number> = {};
+  for (const entry of entries) {
+    positions[toNickname(entry.team.name)] = entry.rank;
+  }
+
+  await redis.setex(cacheKey, STANDINGS_CACHE_TTL, JSON.stringify(positions));
+  return positions;
 }
 
 /**

@@ -18,7 +18,19 @@ import {
   type UnderdogLockJobData,
 } from "@/jobs/queues";
 import { getUnderdogSide } from "@/lib/clients/oddsApi";
+import { getTeamPositions } from "@/lib/clients/apiFootball";
 import { prisma } from "@/lib/prisma";
+
+/**
+ * Derives the API-Football season year from a kickoff date.
+ * The Premier League season starts in August, so Aug–Dec belongs to that
+ * calendar year and Jan–Jul belongs to the previous year's season.
+ * e.g. kickoff in Jan 2026 → season 2025 (the 2025/26 season).
+ */
+function seasonFromKickoff(kickoffIso: string): number {
+  const d = new Date(kickoffIso);
+  return d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
+}
 
 // ---------------------------------------------------------------------------
 // Worker processor
@@ -50,9 +62,23 @@ async function process(job: Job<UnderdogLockJobData>): Promise<void> {
     return;
   }
 
+  // Fetch current league standings for the table-position fallback (§5.3).
+  // Failures are non-fatal: 0/0 positions still pass through to getUnderdogSide,
+  // which will then find no underdog — a safe conservative outcome.
+  let homePosition = 0;
+  let awayPosition = 0;
+  try {
+    const season = seasonFromKickoff(job.data.kickoff);
+    const positions = await getTeamPositions(season);
+    homePosition = positions[homeTeam] ?? 0;
+    awayPosition = positions[awayTeam] ?? 0;
+    job.log(`Standings: ${homeTeam}=${homePosition}, ${awayTeam}=${awayPosition} (season ${season})`);
+  } catch (err) {
+    console.warn("[underdog-lock] Failed to fetch standings for fallback:", (err as Error).message);
+  }
+
   // Determine underdog — Odds API primary, table-position fallback
-  // Table positions default to 0/0 (returns null = no underdog) when unavailable.
-  const result = await getUnderdogSide(homeTeam, awayTeam, externalId, 0, 0);
+  const result = await getUnderdogSide(homeTeam, awayTeam, externalId, homePosition, awayPosition);
 
   await prisma.fixture.update({
     where: { id: fixtureId },
