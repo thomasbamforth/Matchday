@@ -195,7 +195,7 @@ async function expireSlot1Chips(): Promise<void> {
 
 type LeagueMemberRow = { leagueId: string; userId: string; user: { name: string | null } };
 
-function computeRanksPerLeague(
+export function computeRanksPerLeague(
   members: LeagueMemberRow[],
   pointsMap: Record<string, number>
 ): Record<string, Record<string, number>> {
