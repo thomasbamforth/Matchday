@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import Leaderboard from "@/components/leaderboard/Leaderboard";
+import LeaderboardLive from "@/components/leaderboard/LeaderboardLive";
 import RecapCard from "@/components/recap/RecapCard";
 import RecapPending from "@/components/recap/RecapPending";
 import BanterFeed from "@/components/feed/BanterFeed";
@@ -169,8 +169,9 @@ export default async function LeaguePage({ params }: { params: { id: string } })
 
   return (
     <div className="space-y-6">
-      <Leaderboard
-        entries={entries}
+      <LeaderboardLive
+        initialEntries={entries}
+        leagueId={params.id}
         currentUserId={session!.user.id}
         leagueName={league.name}
         gameweekNumber={activeGw?.number ?? 0}
