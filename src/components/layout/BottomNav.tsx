@@ -53,6 +53,7 @@ function IconFixtures({ className }: { className?: string }) {
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home",     Icon: IconHome },
   { href: "/fixtures",  label: "Fixtures", Icon: IconFixtures },
+  { href: "/schedule",  label: "Schedule", Icon: IconFixtures },
   { href: "/leagues",   label: "Leagues",  Icon: IconLeagues },
   { href: "/boosts",    label: "Boosts",   Icon: IconBoosts },
   { href: "/profile",   label: "Profile",  Icon: IconProfile },

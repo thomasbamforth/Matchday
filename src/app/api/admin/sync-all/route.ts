@@ -2,14 +2,23 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { toNickname } from "@/lib/clubNicknames";
 
-// Temporary — fetches ALL season fixtures in ONE API call, groups by round, upserts everything.
-// Remove after use.
-// Body: { season?: number }
-//   season=2024 → 2024/25 season, stored as GW IDs 1-38
-//   season=2025 → 2025/26 season, stored as GW IDs 39-76
+/**
+ * Fetches ALL season fixtures in ONE API call, groups by round, upserts
+ * gameweeks (with startDate/endDate) and fixtures.
+ *
+ * Body: { season?: number }
+ *   season=2024 → 2024/25 season, stored as GW IDs 1-38
+ *   season=2025 → 2025/26 season, stored as GW IDs 39-76
+ *   Omit season → auto-detect from current date (Aug–Dec = current year, Jan–Jul = previous year)
+ */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({})) as { season?: number };
-  const season = body.season ?? 2025;
+
+  // Auto-detect season from current date if not provided
+  const now = new Date();
+  const defaultSeason = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  const season = body.season ?? defaultSeason;
+
   // 2024/25 uses IDs 1-38, 2025/26 uses 39-76, 2026/27 would use 77-114, etc.
   const idOffset = (season - 2024) * 38;
 
@@ -47,14 +56,19 @@ export async function POST(req: Request) {
 
   for (const [seasonNumber, gwItems] of Array.from(byGW.entries()).sort((a, b) => a[0] - b[0])) {
     const dbNumber = idOffset + seasonNumber; // unique sequential ID across seasons
-    const allFinished = gwItems.every((i) => ["FT", "AET", "PEN"].includes(i.fixture.status.short));
-    const anyLive     = gwItems.some((i)  => ["1H", "HT", "2H", "ET", "P"].includes(i.fixture.status.short));
+    const allFinished = gwItems.every((i: any) => ["FT", "AET", "PEN"].includes(i.fixture.status.short));
+    const anyLive     = gwItems.some((i: any)  => ["1H", "HT", "2H", "ET", "P"].includes(i.fixture.status.short));
     const gwStatus    = anyLive ? "ACTIVE" : allFinished ? "FINISHED" : "UPCOMING";
+
+    // Derive gameweek startDate/endDate from fixture kickoffs
+    const kickoffs = gwItems.map((i: any) => new Date(i.fixture.date).getTime());
+    const startDate = new Date(Math.min(...kickoffs));
+    const endDate = new Date(Math.max(...kickoffs));
 
     const gwRec = await prisma.gameweek.upsert({
       where: { number: dbNumber },
-      create: { id: dbNumber, number: dbNumber, season, seasonNumber, status: gwStatus },
-      update: { status: gwStatus, season, seasonNumber },
+      create: { id: dbNumber, number: dbNumber, season, seasonNumber, status: gwStatus, startDate, endDate },
+      update: { status: gwStatus, season, seasonNumber, startDate, endDate },
     });
 
     for (const item of gwItems) {

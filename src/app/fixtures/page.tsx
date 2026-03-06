@@ -12,23 +12,49 @@ export const dynamic = "force-dynamic";
 async function getCurrentGameweek() {
   const fixturesFilter = { fixtures: { some: {} } } as const;
 
-  // ACTIVE with fixtures → earliest UPCOMING with fixtures → most recent FINISHED with fixtures
-  return (
-    (await prisma.gameweek.findFirst({
-      where: { status: "ACTIVE", ...fixturesFilter },
-      include: { fixtures: { orderBy: { kickoff: "asc" } } },
-    })) ??
-    (await prisma.gameweek.findFirst({
-      where: { status: "UPCOMING", ...fixturesFilter },
-      orderBy: { number: "asc" },
-      include: { fixtures: { orderBy: { kickoff: "asc" } } },
-    })) ??
-    (await prisma.gameweek.findFirst({
-      where: { status: "FINISHED", ...fixturesFilter },
-      orderBy: { number: "desc" },
-      include: { fixtures: { orderBy: { kickoff: "asc" } } },
-    }))
-  );
+  // 1. Any ACTIVE gameweek (live matches right now)
+  const active = await prisma.gameweek.findFirst({
+    where: { status: "ACTIVE", ...fixturesFilter },
+    include: { fixtures: { orderBy: { kickoff: "asc" } } },
+  });
+  if (active) return active;
+
+  // 2. Date-aware detection: find the gameweek whose fixtures bracket "now".
+  //    This handles stale statuses — even if the worker hasn't run, we show the
+  //    correct matchday based on actual kickoff times.
+  const now = new Date();
+  const dateAware = await prisma.gameweek.findFirst({
+    where: {
+      ...fixturesFilter,
+      startDate: { lte: now },
+      endDate: { gte: now },
+    },
+    include: { fixtures: { orderBy: { kickoff: "asc" } } },
+  });
+  if (dateAware) return dateAware;
+
+  // 3. If between matchdays, show the nearest upcoming gameweek whose first
+  //    fixture hasn't kicked off yet.
+  const nextUpcoming = await prisma.gameweek.findFirst({
+    where: {
+      ...fixturesFilter,
+      fixtures: { some: { kickoff: { gt: now } } },
+    },
+    orderBy: { number: "asc" },
+    include: { fixtures: { orderBy: { kickoff: "asc" } } },
+  });
+  if (nextUpcoming) return nextUpcoming;
+
+  // 4. Fallback: the most recently finished gameweek (all fixtures in the past).
+  const lastFinished = await prisma.gameweek.findFirst({
+    where: {
+      ...fixturesFilter,
+      fixtures: { some: { kickoff: { lt: now } } },
+    },
+    orderBy: { number: "desc" },
+    include: { fixtures: { orderBy: { kickoff: "asc" } } },
+  });
+  return lastFinished;
 }
 
 export default async function FixturesPage() {
@@ -55,15 +81,23 @@ export default async function FixturesPage() {
     <div className={["min-h-screen bg-aubergine", isSignedIn ? "pb-20" : ""].join(" ").trim()}>
       <div className="mx-auto max-w-xl px-4 pb-8 pt-8">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-black text-white">
-            {gameweek ? `Gameweek ${gameweek.seasonNumber || gameweek.number}` : "Fixtures"}
-          </h1>
-          {gameweek && (
-            <p className="mt-0.5 text-sm capitalize text-white/40">
-              {gameweek.status.toLowerCase()}
-            </p>
-          )}
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-white">
+              {gameweek ? `Gameweek ${gameweek.seasonNumber || gameweek.number}` : "Fixtures"}
+            </h1>
+            {gameweek && (
+              <p className="mt-0.5 text-sm capitalize text-white/40">
+                {gameweek.status.toLowerCase()}
+              </p>
+            )}
+          </div>
+          <Link
+            href="/schedule"
+            className="mt-1 text-xs font-semibold text-hot-pink hover:text-hot-pink/80"
+          >
+            Full schedule →
+          </Link>
         </div>
 
         {fixtures.length === 0 ? (

@@ -10,7 +10,9 @@ async function getData(userId: string) {
       select: {
         id: true,
         number: true,
+        seasonNumber: true,
         status: true,
+        startDate: true,
         _count: { select: { fixtures: true } },
       },
     }),
@@ -76,10 +78,20 @@ export default async function GameweeksPage() {
               >
                 <div>
                   <p className="text-sm font-semibold text-white">
-                    Gameweek {gw.number}
+                    Gameweek {gw.seasonNumber || gw.number}
                   </p>
                   <p className={["mt-0.5 text-xs", STATUS_COLOR[gw.status]].join(" ")}>
                     {STATUS_LABEL[gw.status]} · {gw._count.fixtures} fixture{gw._count.fixtures !== 1 ? "s" : ""}
+                    {gw.startDate && (
+                      <span className="text-white/25">
+                        {" · "}
+                        {new Date(gw.startDate).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          timeZone: "Europe/London",
+                        })}
+                      </span>
+                    )}
                   </p>
                 </div>
 
